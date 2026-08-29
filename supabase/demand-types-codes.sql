@@ -116,7 +116,51 @@ end; $$;
 revoke all on function public.decidir_agendamento(bigint,text) from public;
 grant execute on function public.decidir_agendamento(bigint,text) to authenticated;
 
+create or replace function public.solicitar_reagendamento(p_demanda_id bigint,p_nova_data timestamptz)
+returns void language plpgsql security definer set search_path=public as $$
+declare item public.demandas%rowtype;
+begin
+  select d.* into item from public.demandas d join public.perfis p on p.id=auth.uid()
+  where d.id=p_demanda_id and d.criado_por=auth.uid() and d.tipo_demanda='agendamento'
+    and d.status='Aprovado' and p.ativo and p.papel='lojista';
+  if item.id is null then raise exception 'Agendamento aprovado não encontrado ou sem permissão'; end if;
+  if p_nova_data is null or p_nova_data<=now() then raise exception 'Informe uma data e horário futuros'; end if;
+  update public.demandas set agendamento_em=p_nova_data,status='Aguardando aprovação',observacoes_adicionais=null where id=p_demanda_id;
+end; $$;
+revoke all on function public.solicitar_reagendamento(bigint,timestamptz) from public;
+grant execute on function public.solicitar_reagendamento(bigint,timestamptz) to authenticated;
+
+create or replace function public.cancelar_agendamento_lojista(p_demanda_id bigint,p_justificativa text)
+returns void language plpgsql security definer set search_path=public as $$
+declare item public.demandas%rowtype;
+begin
+  select d.* into item from public.demandas d join public.perfis p on p.id=auth.uid()
+  where d.id=p_demanda_id and d.criado_por=auth.uid() and d.tipo_demanda='agendamento'
+    and d.status='Aprovado' and p.ativo and p.papel='lojista';
+  if item.id is null then raise exception 'Agendamento aprovado não encontrado ou sem permissão'; end if;
+  if nullif(trim(p_justificativa),'') is null then raise exception 'A justificativa é obrigatória'; end if;
+  update public.demandas set status='Cancelado',observacoes_adicionais=trim(p_justificativa) where id=p_demanda_id;
+end; $$;
+revoke all on function public.cancelar_agendamento_lojista(bigint,text) from public;
+grant execute on function public.cancelar_agendamento_lojista(bigint,text) to authenticated;
+
 -- Reativa a proteção de edição depois da normalização administrativa acima.
+create or replace function public.restringir_campos_por_permissao()
+returns trigger language plpgsql security definer set search_path=public as $$
+begin
+  new.organizacao_id:=old.organizacao_id; new.criado_por:=old.criado_por; new.criado_em:=old.criado_em;
+  if old.tipo_demanda='agendamento' and old.criado_por=auth.uid() and old.status='Aprovado'
+     and ((new.status='Aguardando aprovação' and new.agendamento_em is distinct from old.agendamento_em)
+       or (new.status='Cancelado' and nullif(trim(new.observacoes_adicionais),'') is not null)) then
+    return new;
+  end if;
+  if not public.tem_permissao_usuario('classificar_prioridade') then new.prioridade:=old.prioridade; end if;
+  if not public.tem_permissao_usuario('alterar_status') then
+    new.categoria:=old.categoria; new.responsavel:=old.responsavel; new.status:=old.status;
+    new.prazo:=old.prazo; new.proxima_acao:=old.proxima_acao;
+  end if;
+  return new;
+end; $$;
 drop trigger if exists restringir_campos_por_permissao on public.demandas;
 create trigger restringir_campos_por_permissao before update on public.demandas
 for each row execute procedure public.restringir_campos_por_permissao();
