@@ -10,6 +10,7 @@ alter table public.demandas add column if not exists observacoes_adicionais text
 alter table public.demandas drop constraint if exists demandas_tipo_demanda_check;
 alter table public.demandas drop constraint if exists demandas_prioridade_check;
 alter table public.demandas drop constraint if exists demandas_status_check;
+drop trigger if exists restringir_campos_por_permissao on public.demandas;
 
 update public.demandas set prioridade='A definir' where prioridade is null or prioridade not in ('A definir','Baixa','Média','Alta','Urgente');
 update public.demandas set status=case status when 'A Fazer' then 'Registrado' when 'Em Andamento' then 'Em andamento' when 'Aguardando Terceiros' then 'Em análise' when 'Aguardando Aprovação' then 'Aguardando aprovação' when 'Concluída' then 'Concluído' when 'Cancelada' then 'Cancelado' else status end;
@@ -84,6 +85,11 @@ begin
 end; $$;
 revoke all on function public.decidir_agendamento(bigint,text) from public;
 grant execute on function public.decidir_agendamento(bigint,text) to authenticated;
+
+-- Reativa a proteção de edição depois da normalização administrativa acima.
+drop trigger if exists restringir_campos_por_permissao on public.demandas;
+create trigger restringir_campos_por_permissao before update on public.demandas
+for each row execute procedure public.restringir_campos_por_permissao();
 
 drop policy if exists "permissao adiciona anexo" on public.anexos_demandas;
 create policy "permissao adiciona anexo" on public.anexos_demandas for insert to authenticated with check (criado_por=auth.uid() and public.pode_visualizar_demanda(demanda_id) and (public.tem_permissao_usuario('criar_corretiva') or public.tem_permissao_usuario('criar_agendamento') or public.tem_permissao_usuario('criar_preventiva') or public.tem_permissao_usuario('editar_todas') or public.tem_permissao_usuario('editar_proprias')));
