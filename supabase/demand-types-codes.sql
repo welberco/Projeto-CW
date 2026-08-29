@@ -41,6 +41,15 @@ from public.organizacoes o cross join (values('gestor_manutencao'),('tecnico'),(
 on conflict(organizacao_id,papel,acao) do nothing;
 drop policy if exists "permissao cria demanda" on public.demandas;
 create policy "permissao cria demanda" on public.demandas for insert to authenticated with check (criado_por=auth.uid() and public.tem_permissao_usuario(case tipo_demanda when 'corretiva' then 'criar_corretiva' when 'agendamento' then 'criar_agendamento' else 'criar_preventiva' end));
+drop policy if exists "administrador cria qualquer demanda" on public.demandas;
+create policy "administrador cria qualquer demanda" on public.demandas for insert to authenticated
+with check (
+  criado_por=auth.uid() and exists (
+    select 1 from public.perfis p
+    where p.id=auth.uid() and p.ativo and p.papel='administrador'
+      and p.organizacao_id=demandas.organizacao_id
+  )
+);
 
 create or replace function public.preparar_demanda_lojista() returns trigger language plpgsql security definer set search_path=public as $$
 declare perfil public.perfis%rowtype;
