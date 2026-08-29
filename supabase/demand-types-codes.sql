@@ -82,6 +82,27 @@ end; $$;
 revoke all on function public.criar_demanda_lojista(text,text,text,text,timestamptz,text,text) from public;
 grant execute on function public.criar_demanda_lojista(text,text,text,text,timestamptz,text,text) to authenticated;
 
+drop function if exists public.criar_demanda_usuario(text,text,text,text,timestamptz,text,text,text,date,text);
+create function public.criar_demanda_usuario(p_titulo text,p_local text,p_observacoes text,p_tipo_demanda text,p_agendamento_em timestamptz,p_empresa_prestador text,p_prioridade text,p_responsavel text,p_prazo date,p_observacoes_adicionais text)
+returns jsonb language plpgsql security definer set search_path=public as $$
+declare perfil public.perfis%rowtype; demanda_id bigint; permissao text; status_inicial text;
+begin
+  select * into perfil from public.perfis where id=auth.uid() and ativo;
+  if perfil.id is null then raise exception 'Perfil ativo não encontrado'; end if;
+  if p_tipo_demanda not in ('corretiva','agendamento','preventiva') then raise exception 'Tipo de demanda inválido'; end if;
+  permissao:=case p_tipo_demanda when 'corretiva' then 'criar_corretiva' when 'agendamento' then 'criar_agendamento' else 'criar_preventiva' end;
+  if perfil.papel<>'administrador' and not public.tem_permissao_usuario(permissao) then raise exception 'Sem permissão para criar este tipo de demanda'; end if;
+  if nullif(trim(p_titulo),'') is null or nullif(trim(p_local),'') is null then raise exception 'Tipo e local são obrigatórios'; end if;
+  if p_tipo_demanda in ('corretiva','preventiva') and nullif(trim(p_observacoes),'') is null then raise exception 'A descrição é obrigatória'; end if;
+  if p_tipo_demanda in ('agendamento','preventiva') and (p_agendamento_em is null or nullif(trim(p_empresa_prestador),'') is null) then raise exception 'Data prevista e prestador/responsável são obrigatórios'; end if;
+  status_inicial:=case p_tipo_demanda when 'corretiva' then 'Registrado' when 'agendamento' then 'Aguardando aprovação' else 'Agendado' end;
+  insert into public.demandas(organizacao_id,titulo,categoria,local,prioridade,responsavel,status,prazo,observacoes,observacoes_adicionais,criado_por,tipo_demanda,agendamento_em,empresa_prestador,tipo_servico)
+  values(perfil.organizacao_id,trim(p_titulo),'Manutenção',trim(p_local),case when p_tipo_demanda='corretiva' and (perfil.papel='administrador' or public.tem_permissao_usuario('classificar_prioridade')) then coalesce(nullif(trim(p_prioridade),''),'A definir') else 'A definir' end,case when p_tipo_demanda='corretiva' and (perfil.papel='administrador' or public.tem_permissao_usuario('alterar_status')) then nullif(trim(p_responsavel),'') else null end,status_inicial,case when p_tipo_demanda='corretiva' and (perfil.papel='administrador' or public.tem_permissao_usuario('alterar_status')) then p_prazo else null end,nullif(trim(p_observacoes),''),nullif(trim(p_observacoes_adicionais),''),auth.uid(),p_tipo_demanda,p_agendamento_em,nullif(trim(p_empresa_prestador),''),trim(p_titulo)) returning id into demanda_id;
+  return jsonb_build_object('id',demanda_id);
+end; $$;
+revoke all on function public.criar_demanda_usuario(text,text,text,text,timestamptz,text,text,text,date,text) from public;
+grant execute on function public.criar_demanda_usuario(text,text,text,text,timestamptz,text,text,text,date,text) to authenticated;
+
 create or replace function public.decidir_agendamento(p_demanda_id bigint,p_decisao text) returns void language plpgsql security definer set search_path=public as $$
 declare item public.demandas%rowtype;
 begin
