@@ -22,3 +22,9 @@ Abra `index.html` no navegador ou execute `python3 -m http.server 8080` e acesse
 2. Implementar autenticação, banco de dados e anexos.
 3. Adicionar edição, histórico, comentários, notificações e relatórios.
 4. Preparar a arquitetura multiempresa para comercialização.
+
+## Configuração do Supabase
+
+1. Abra o SQL Editor do projeto no Supabase.
+2. Copie e execute o conteúdo de `supabase/schema.sql`.
+3. O script cria a organização Serena Mall, perfis, demandas, índices e políticas de segurança por organização.
