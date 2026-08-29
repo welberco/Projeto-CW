@@ -16,6 +16,13 @@ Deno.serve(async (req) => {
       if(body.loja)await admin.from('perfis').update({loja:body.loja}).eq('id',data.user.id)
       return new Response(JSON.stringify({user_id:data.user.id}),{headers:{...cors,'Content-Type':'application/json'}})
     }
+    if(body.action==='update'){
+      const {error:authError}=await admin.auth.admin.updateUserById(body.user_id,{email:body.email,email_confirm:true,user_metadata:{nome:body.nome,papel:body.papel}})
+      if(authError)throw authError
+      const {error:profileError}=await admin.from('perfis').update({nome:body.nome,email:body.email,loja:body.loja||null,papel:body.papel,ativo:body.ativo}).eq('id',body.user_id)
+      if(profileError)throw profileError
+      return new Response(JSON.stringify({updated:true}),{headers:{...cors,'Content-Type':'application/json'}})
+    }
     throw new Error('Ação inválida')
   } catch(error){return new Response(JSON.stringify({error:error.message}),{status:400,headers:{...cors,'Content-Type':'application/json'}})}
 })
