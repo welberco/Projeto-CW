@@ -7,13 +7,16 @@ alter table public.demandas add column if not exists empresa_prestador text;
 alter table public.demandas add column if not exists tipo_servico text;
 alter table public.demandas add column if not exists observacoes_adicionais text;
 
-update public.demandas set prioridade='A definir' where prioridade in ('Não classificada','Nao classificada');
-update public.demandas set status=case status when 'A Fazer' then 'Registrado' when 'Em Andamento' then 'Em andamento' when 'Aguardando Terceiros' then 'Em análise' when 'Aguardando Aprovação' then 'Aguardando aprovação' when 'Concluída' then 'Concluído' when 'Cancelada' then 'Cancelado' else status end;
 alter table public.demandas drop constraint if exists demandas_tipo_demanda_check;
-alter table public.demandas add constraint demandas_tipo_demanda_check check (tipo_demanda in ('corretiva','agendamento','preventiva'));
 alter table public.demandas drop constraint if exists demandas_prioridade_check;
-alter table public.demandas add constraint demandas_prioridade_check check (prioridade in ('A definir','Baixa','Média','Alta','Urgente'));
 alter table public.demandas drop constraint if exists demandas_status_check;
+
+update public.demandas set prioridade='A definir' where prioridade is null or prioridade not in ('A definir','Baixa','Média','Alta','Urgente');
+update public.demandas set status=case status when 'A Fazer' then 'Registrado' when 'Em Andamento' then 'Em andamento' when 'Aguardando Terceiros' then 'Em análise' when 'Aguardando Aprovação' then 'Aguardando aprovação' when 'Concluída' then 'Concluído' when 'Cancelada' then 'Cancelado' else status end;
+update public.demandas set status='Registrado' where status is null or status not in ('Registrado','Em análise','Programado','Em andamento','Aguardando aprovação','Aprovado','Reprovado','Agendado','Em execução','Concluído','Cancelado');
+
+alter table public.demandas add constraint demandas_tipo_demanda_check check (tipo_demanda in ('corretiva','agendamento','preventiva'));
+alter table public.demandas add constraint demandas_prioridade_check check (prioridade in ('A definir','Baixa','Média','Alta','Urgente'));
 alter table public.demandas add constraint demandas_status_check check (status in ('Registrado','Em análise','Programado','Em andamento','Aguardando aprovação','Aprovado','Reprovado','Agendado','Em execução','Concluído','Cancelado'));
 
 create or replace function public.gerar_codigo_demanda() returns trigger language plpgsql security definer set search_path=public as $$
