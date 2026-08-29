@@ -31,6 +31,7 @@ $$;
 
 drop policy if exists "gestao visualiza permissoes" on public.permissoes_perfis;
 drop policy if exists "administrador altera permissoes" on public.permissoes_perfis;
+drop policy if exists "usuarios visualizam permissoes da organizacao" on public.permissoes_perfis;
 create policy "usuarios visualizam permissoes da organizacao" on public.permissoes_perfis for select to authenticated
 using (organizacao_id=(select organizacao_id from public.perfis where id=auth.uid() and ativo));
 create policy "administrador altera permissoes" on public.permissoes_perfis for all to authenticated
@@ -57,6 +58,7 @@ cross join (values
 on conflict (organizacao_id,papel,acao) do nothing;
 
 drop policy if exists "gestao atualiza perfis" on public.perfis;
+drop policy if exists "permissao atualiza perfis" on public.perfis;
 create policy "permissao atualiza perfis" on public.perfis for update to authenticated
 using (public.tem_permissao_usuario('gerenciar_usuarios'))
 with check (public.tem_permissao_usuario('gerenciar_usuarios'));
@@ -88,10 +90,12 @@ returns boolean language sql stable security definer set search_path=public as $
 $$;
 
 drop policy if exists "perfis autorizados criam demandas" on public.demandas;
+drop policy if exists "permissao cria demanda" on public.demandas;
 create policy "permissao cria demanda" on public.demandas for insert to authenticated
 with check (criado_por=auth.uid() and public.tem_permissao_usuario('cadastrar_demanda'));
 
 drop policy if exists "gestao ou criador atualiza demanda" on public.demandas;
+drop policy if exists "permissao atualiza demanda" on public.demandas;
 create policy "permissao atualiza demanda" on public.demandas for update to authenticated
 using (public.tem_permissao_usuario('editar_todas') or (criado_por=auth.uid() and public.tem_permissao_usuario('editar_proprias')))
 with check (public.tem_permissao_usuario('editar_todas') or (criado_por=auth.uid() and public.tem_permissao_usuario('editar_proprias')));
@@ -116,21 +120,26 @@ drop trigger if exists restringir_campos_por_permissao on public.demandas;
 create trigger restringir_campos_por_permissao before update on public.demandas for each row execute procedure public.restringir_campos_por_permissao();
 
 drop policy if exists "usuario visualiza historico permitido" on public.historico_demandas;
+drop policy if exists "permissao visualiza historico" on public.historico_demandas;
 create policy "permissao visualiza historico" on public.historico_demandas for select to authenticated
 using (public.tem_permissao_usuario('visualizar_historico') and public.pode_visualizar_demanda(demanda_id));
 
 drop policy if exists "criador ou gestao exclui anexo" on public.anexos_demandas;
+drop policy if exists "permissao exclui anexo" on public.anexos_demandas;
 create policy "permissao exclui anexo" on public.anexos_demandas for delete to authenticated
 using (public.tem_permissao_usuario('excluir_midia') and public.pode_visualizar_demanda(demanda_id));
 
 drop policy if exists "usuario adiciona anexos permitidos" on public.anexos_demandas;
+drop policy if exists "permissao adiciona anexo" on public.anexos_demandas;
 create policy "permissao adiciona anexo" on public.anexos_demandas for insert to authenticated
 with check (criado_por=auth.uid() and public.pode_visualizar_demanda(demanda_id) and (public.tem_permissao_usuario('cadastrar_demanda') or public.tem_permissao_usuario('editar_todas') or public.tem_permissao_usuario('editar_proprias')));
 
 drop policy if exists "usuario envia arquivos permitidos" on storage.objects;
+drop policy if exists "permissao envia arquivo" on storage.objects;
 create policy "permissao envia arquivo" on storage.objects for insert to authenticated
 with check (bucket_id='cw-anexos' and public.pode_visualizar_demanda(((storage.foldername(name))[1])::bigint) and (public.tem_permissao_usuario('cadastrar_demanda') or public.tem_permissao_usuario('editar_todas') or public.tem_permissao_usuario('editar_proprias')));
 
 drop policy if exists "criador ou gestao exclui arquivo" on storage.objects;
+drop policy if exists "permissao exclui arquivo" on storage.objects;
 create policy "permissao exclui arquivo" on storage.objects for delete to authenticated
 using (bucket_id='cw-anexos' and public.tem_permissao_usuario('excluir_midia') and public.pode_visualizar_demanda(((storage.foldername(name))[1])::bigint));
