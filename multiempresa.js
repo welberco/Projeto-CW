@@ -63,6 +63,7 @@ enterApp=async function(current){
     await loadData();if(revision!==authRevision)return;
     el('authScreen').classList.add('hidden');el('approvalScreen').classList.add('hidden');document.querySelector('.shell').style.display='';
     el('authMessage').textContent='';
+    if(passwordSetupMode)setTimeout(openPasswordSetup,0);
   }catch(error){if(revision===authRevision){el('authScreen').classList.remove('hidden');el('authMessage').textContent='Não foi possível carregar o acesso: '+error.message}}
 };
 el('toggleAuth').onclick=async()=>{
@@ -149,5 +150,5 @@ savePermission=async function(papel,acao,permitido){
 };
 
 // Não aguardar chamadas Supabase dentro do callback de autenticação.
-db.auth.onAuthStateChange((event,current)=>{if(event==='TOKEN_REFRESHED'){session=current;return}setTimeout(()=>enterApp(current),0)});
+db.auth.onAuthStateChange((event,current)=>{if(event==='TOKEN_REFRESHED'){session=current;return}if(event==='PASSWORD_RECOVERY')passwordSetupMode=true;setTimeout(()=>enterApp(current),0)});
 db.auth.getSession().then(({data,error})=>{if(error){el('authMessage').textContent=error.message;return}return enterApp(data.session)});
