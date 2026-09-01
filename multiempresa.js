@@ -104,8 +104,8 @@ el('manageEnterprises').onclick=()=>{
 };
 el('enterpriseForm').onsubmit=async e=>{
   e.preventDefault();if(!isAdmin())return;const button=e.target.querySelector('button');button.disabled=true;
-  try{const {data,error}=await db.from('organizacoes').insert({nome:e.target.elements.nome.value.trim()}).select('id').single();if(error)throw error;
-    activeOrgId=data.id;await refreshEnterpriseOptions();e.target.reset();el('enterpriseMessage').textContent='Empreendimento criado. Em Usuários, cadastre ou aprove o responsável com perfil Empreendimento.';
+  try{const {data,error}=await db.rpc('cw_criar_organizacao',{p_nome:e.target.elements.nome.value.trim()});if(error)throw error;
+    activeOrgId=data;await refreshEnterpriseOptions();e.target.reset();el('enterpriseMessage').textContent='Empreendimento criado. Em Usuários, cadastre ou aprove o responsável com perfil Empreendimento.';
   }catch(error){el('enterpriseMessage').textContent=error.message}finally{button.disabled=false}
 };
 

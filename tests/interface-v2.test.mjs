@@ -20,6 +20,7 @@ assert.equal(w.document.querySelector('#nameField')?.hidden,true);
 assert.equal([...w.document.querySelectorAll('#authScreen label:not([hidden])')][0]?.textContent.trim().startsWith('E-mail'),true);
 assert.equal(w.document.getElementById('forgotPassword')?.textContent.trim(),'Esqueci minha senha');
 assert.ok(read('app.js').includes('resetPasswordForEmail'));
+assert.ok(read('multiempresa.js').includes("db.rpc('cw_criar_organizacao'"));
 assert.ok(w.document.getElementById('cwOrdens'));
 assert.ok(w.document.getElementById('cwAtivos'));
 assert.ok(w.document.getElementById('cwPrestadores'));
