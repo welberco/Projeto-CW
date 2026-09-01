@@ -2,7 +2,7 @@
   "name": "cw-manutencao",
   "private": true,
   "scripts": {
-    "test": "node --check app.js && node --check multiempresa.js && node tests/multiempresa.test.mjs && node tests/interface.test.mjs && node tests/admin-users.test.mjs"
+    "test": "node --check app.js && node --check multiempresa.js && node --check arquitetura-v2.js && node tests/multiempresa.test.mjs && node tests/interface.test.mjs && node tests/interface-v2.test.mjs && node tests/admin-users.test.mjs"
   },
   "devDependencies": {
     "@electric-sql/pglite": "0.5.8",

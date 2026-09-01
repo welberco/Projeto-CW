@@ -29,7 +29,7 @@ Deno.serve(async (req) => {
       target = data
     }
     const org = target?.organizacao_id || (actor.papel === 'administrador' ? body.organizacao_id : actor.organizacao_id)
-    const papel = body.papel || 'lojista'
+    const papel = body.papel || 'usuario_padrao'
     const { data: allowed, error: allowedError } = await caller.rpc('cw_pode_gerenciar_usuario', {
       p_org: org, p_usuario: target?.id || null, p_papel: papel,
     })
@@ -43,10 +43,9 @@ Deno.serve(async (req) => {
     if (target?.id === actor.id && (papel !== actor.papel || !ativo || aprovacao !== 'aprovado')) throw new Error('Não altere seu próprio perfil ou acesso')
     let userId = target?.id
     if (body.action === 'create') {
-      if (typeof body.password !== 'string' || body.password.length < 8) throw new Error('Senha provisória deve ter ao menos 8 caracteres')
-      const { data, error } = await admin.auth.admin.createUser({
-        email, password: body.password, email_confirm: true,
-        user_metadata: { nome, organizacao_id: org },
+      const { data, error } = await admin.auth.admin.inviteUserByEmail(email, {
+        data: { nome, organizacao_id: org },
+        redirectTo: body.redirect_to || undefined,
       })
       if (error) throw error
       userId = data.user.id

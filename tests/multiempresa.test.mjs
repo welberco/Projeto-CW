@@ -93,4 +93,24 @@ await deny(tech,"insert into storage.objects(bucket_id,name) values('cw-logos',$
 await db.exec(read('supabase/multiempresa.sql'));
 assert.equal((await act(manager,"select tem_permissao_usuario('apagar_demanda') ok"))[0].ok,false);
 console.log('PASS: isolamento de 2 empresas, 7 usuários, pendência, promoção, matriz, RPCs, Storage, reexecução preservando permissões.');
+
+await db.exec(read('supabase/arquitetura-v2.sql'));
+assert.equal((await db.query("select papel from perfis where id=$1",[standard])).rows[0].papel,'usuario_padrao');
+assert.equal((await db.query("select papel from perfis where id=$1",[manager])).rows[0].papel,'gestor');
+assert.ok((await db.query("select count(*)::int total from demandas where codigo_solicitacao is not null")).rows[0].total>=4);
+assert.equal((await act(manager,"select tem_permissao_usuario('os_criar') ok"))[0].ok,true);
+const generated=(await act(manager,'select * from cw_gerar_os_solicitacao(1)'))[0];
+assert.match(generated.codigo,/^OS-\d{4}-\d{3}$/);
+assert.equal((await act(other,'select * from ordens_servico')).length,0);
+assert.equal((await act(manager,'select * from ordens_servico')).length,1);
+assert.equal((await act(standard,'select * from ordens_servico')).length,0);
+assert.equal((await act(standard,'select * from cw_resumo_os_solicitacao(1)')).length,1);
+await deny(other,'select cw_gerar_os_solicitacao(2)');
+await act(manager,"insert into ativos(organizacao_id,nome,codigo,criado_por) values($1,'Bomba','EQP-0001',$2)",[A,manager]);
+assert.equal((await act(other,'select * from ativos')).length,0);
+assert.equal((await act(manager,'select * from ativos')).length,1);
+await act(admin,"update permissoes_perfis set permitido=true where organizacao_id=$1 and papel='tecnico' and acao='os_criar'",[A]);
+await db.exec(read('supabase/arquitetura-v2.sql'));
+assert.equal((await act(tech,"select tem_permissao_usuario('os_criar') ok"))[0].ok,true);
+console.log('PASS: arquitetura v2, códigos, OS, ativos e isolamento entre empreendimentos.');
 await db.close();
