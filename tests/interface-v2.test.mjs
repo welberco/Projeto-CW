@@ -21,6 +21,9 @@ assert.equal([...w.document.querySelectorAll('#authScreen label:not([hidden])')]
 assert.equal(w.document.getElementById('forgotPassword')?.textContent.trim(),'Esqueci minha senha');
 assert.ok(read('app.js').includes('resetPasswordForEmail'));
 assert.ok(read('multiempresa.js').includes("db.rpc('cw_criar_organizacao'"));
+assert.ok(read('multiempresa.js').includes("db.rpc('cw_listar_organizacoes'"));
+assert.ok(read('arquitetura-v2.js').includes('data-open-user'));
+assert.ok(read('arquitetura-v2.js').includes("querySelectorAll('[data-open-user]')"));
 assert.ok(w.document.getElementById('cwOrdens'));
 assert.ok(w.document.getElementById('cwAtivos'));
 assert.ok(w.document.getElementById('cwPrestadores'));

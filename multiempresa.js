@@ -17,7 +17,7 @@ function approvalView(message){
   document.querySelector('.shell').style.display='none';
 }
 async function refreshEnterpriseOptions(){
-  const {data,error}=await db.from('organizacoes').select('id,nome').order('nome');
+  const {data,error}=isAdmin()?await db.rpc('cw_listar_organizacoes'):await db.from('organizacoes').select('id,nome').order('nome');
   if(error)throw error;
   enterpriseOptions=data||[];
   if(isAdmin()){

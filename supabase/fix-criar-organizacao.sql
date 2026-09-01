@@ -65,7 +65,28 @@ begin
 end;
 $$;
 
+create or replace function public.cw_listar_organizacoes()
+returns table(id uuid, nome text)
+language plpgsql
+stable
+security definer
+set search_path = public
+as $$
+begin
+  if auth.uid() is null or not public.cw_admin() then
+    raise exception 'Apenas o Administrador pode listar todos os empreendimentos';
+  end if;
+
+  return query
+  select o.id, o.nome
+  from public.organizacoes o
+  order by o.nome;
+end;
+$$;
+
 revoke all on function public.cw_criar_organizacao(text) from public, anon;
 grant execute on function public.cw_criar_organizacao(text) to authenticated;
+revoke all on function public.cw_listar_organizacoes() from public, anon;
+grant execute on function public.cw_listar_organizacoes() to authenticated;
 
 commit;
