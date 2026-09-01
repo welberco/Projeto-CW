@@ -7,6 +7,28 @@ create table if not exists public.cw_migracoes (
   aplicado_em timestamptz not null default now()
 );
 
+-- Compatibilidade com instalações anteriores à arquitetura multiempresa.
+alter table public.perfis add column if not exists email text;
+alter table public.perfis add column if not exists loja text;
+alter table public.perfis add column if not exists ativo boolean not null default true;
+alter table public.perfis add column if not exists aprovacao text not null default 'aprovado';
+alter table public.perfis add column if not exists aprovado_por uuid references auth.users(id);
+alter table public.perfis add column if not exists aprovado_em timestamptz;
+update public.perfis p set email=u.email from auth.users u where u.id=p.id and p.email is null;
+update public.perfis set aprovacao='aprovado',ativo=true where aprovacao is null;
+alter table public.perfis drop constraint if exists perfis_aprovacao_check;
+alter table public.perfis add constraint perfis_aprovacao_check check(aprovacao in ('pendente','aprovado','rejeitado'));
+
+create or replace function public.cw_org_atual() returns uuid language sql stable security definer set search_path=public as $$
+  select organizacao_id from public.perfis where id=auth.uid() and ativo and aprovacao='aprovado';
+$$;
+create or replace function public.cw_admin() returns boolean language sql stable security definer set search_path=public as $$
+  select exists(select 1 from public.perfis where id=auth.uid() and ativo and aprovacao='aprovado' and papel='administrador');
+$$;
+create or replace function public.cw_acesso_org(org uuid) returns boolean language sql stable security definer set search_path=public as $$
+  select coalesce(public.cw_admin() or (org is not null and org=public.cw_org_atual()),false);
+$$;
+
 -- Nomenclatura definitiva dos perfis.
 alter table public.perfis drop constraint if exists perfis_papel_check;
 update public.perfis set papel=case papel
