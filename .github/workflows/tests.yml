@@ -1,11 +1,13 @@
 name: Testes do CW Manutenção
 
 on:
+  workflow_dispatch:
   push:
     branches:
       - main
       - "refactor/**"
       - "feature/**"
+      - "feat/**"
       - "fix/**"
   pull_request:
     branches:
@@ -14,11 +16,15 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   tests:
     name: Verificar aplicação
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
       - name: Baixar repositório
         uses: actions/checkout@v4

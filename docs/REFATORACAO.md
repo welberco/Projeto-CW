@@ -1,56 +1,48 @@
 # Refatoração do CW Manutenção
 
-## Objetivo
+## Objetivo da revisão
 
-Organizar o frontend, remover código legado e reduzir dependências globais sem alterar as regras de negócio ou o isolamento multiempresa.
+Reduzir o acoplamento e o legado do frontend de modo conservador, tornando a navegação e as responsabilidades dos scripts explícitas, sem alterar comportamento funcional ou regras de negócio.
 
-## Regras
+## Regras obrigatórias
 
-1. Não refatorar diretamente na branch `main`.
-2. Cada etapa deve ter escopo pequeno.
-3. Todos os testes devem passar antes e depois da alteração.
-4. Mudanças no frontend não devem alterar RLS ou permissões do banco.
-5. Não remover compatibilidade legada antes de migrar os dados.
-6. Não misturar refatoração estrutural com novas funcionalidades.
-7. Validar cada etapa no ambiente de pré-visualização.
+1. A refatoração nunca deve ser feita diretamente na branch `main`; cada fase deve usar branch própria e revisão antes da integração.
+2. A suíte completa deve ser executada e registrada antes e depois de cada alteração.
+3. Refatoração estrutural e novas funcionalidades não podem ser misturadas no mesmo trabalho ou commit.
+4. As regras de negócio existentes devem ser preservadas.
+5. A integração com o Supabase, suas políticas RLS e a segurança efetiva no banco devem ser preservadas.
+6. O isolamento multiempresa deve permanecer garantido no frontend e, principalmente, no banco; nenhuma refatoração pode ampliar o acesso entre organizações.
+7. Código legado só pode ser removido depois de identificado, coberto por testes e substituído de forma verificável.
+8. Os commits devem ser pequenos, reversíveis e limitados a uma finalidade verificável.
+9. A branch deve passar por validação manual no ambiente de pré-visualização antes de ser integrada à `main`.
 
-## Diagnóstico inicial
+## Divisão da Fase 2
 
-- `app.js`, `multiempresa.js` e `arquitetura-v2.js` dependem da ordem de carregamento.
-- A navegação passa por `show`, `showBase`, `cwLegacyShow` e `cwNavigate`.
-- O menu legado do HTML é substituído em tempo de execução.
-- Há eventos inline e funções globais que deverão ser removidos gradualmente.
-- Os nomes de perfis antigos ainda possuem uma camada temporária de compatibilidade.
-- Os testes atuais protegem isolamento, RLS, Storage, permissões, OS e a estrutura principal da interface, mas precisam ganhar cobertura funcional durante a revisão.
+### Fase 2A — inventário e testes
 
-## Etapas
+Mapear globais, sobrescritas, listeners, eventos inline, dependências entre arquivos e o fluxo da navegação. Adicionar testes de caracterização que registrem o comportamento atual. Nesta fase nenhum legado é removido.
 
-- [x] Registrar o resultado inicial dos testes
-- [x] Limpar arquivos de configuração obsoletos
-- [x] Criar integração contínua
-- [ ] Mapear funções globais
-- [ ] Mapear dependências entre os três scripts
-- [ ] Padronizar os nomes dos perfis
-- [ ] Consolidar a navegação
-- [ ] Remover o menu legado
-- [ ] Remover eventos inline
-- [ ] Extrair configuração do Supabase
-- [ ] Separar autenticação
-- [ ] Separar permissões
-- [ ] Separar organizações
-- [ ] Separar solicitações
-- [ ] Separar ordens de serviço
-- [ ] Separar ativos
-- [ ] Separar prestadores
-- [ ] Atualizar os testes
-- [ ] Atualizar o README
+### Fase 2B — consolidação da navegação
 
-## Proteções criadas
+Consolidar progressivamente a cadeia de navegação e reduzir sobrescritas, mantendo as rotas, permissões e telas cobertas pelos testes da Fase 2A.
 
-- Branch de trabalho: `refactor/limpeza-fase-1`
-- Ponto de restauração: `backup/pre-refatoracao-v2`
-- CI: `.github/workflows/tests.yml`
+### Fase 2C — remoção do código obsoleto
 
-## Critério para iniciar a Fase 2
+Remover apenas os trechos comprovadamente substituídos e sem consumidores, depois da consolidação e de nova validação integral dos testes.
 
-O workflow do GitHub e os testes locais devem concluir sem erros. A próxima fase começará pelo inventário da cadeia `show` → `showBase` → `cwLegacyShow` → `cwNavigate`, sem alterar inicialmente as regras do Supabase.
+## Linha de base da Fase 2A
+
+Antes das alterações, `npm ci` e `npm test` concluíram com sucesso na branch `refactor/limpeza-fase-2`. A suíte inicial validou sintaxe, banco e isolamento multiempresa, interfaces v1/v2 e administração de usuários.
+
+## Lista de verificação
+
+- [x] Fase 2A criada a partir da Fase 1 validada.
+- [x] Testes executados antes das alterações.
+- [x] Globais, sobrescritas, eventos e dependências inventariados.
+- [x] Navegação atual coberta por testes de caracterização.
+- [x] Testes executados depois das alterações.
+- [ ] Validação manual da Fase 2A antes da integração.
+- [ ] Fase 2B: consolidar a navegação sem alterar comportamento.
+- [ ] Validar manualmente e automatizar a cobertura da Fase 2B.
+- [ ] Fase 2C: remover somente código comprovadamente obsoleto.
+- [ ] Validar manualmente e executar a suíte completa antes de integrar à `main`.
