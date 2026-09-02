@@ -39,6 +39,11 @@ begin
 end;
 $$;
 
+drop trigger if exists cw_inicializar_matriz_organizacao on public.organizacoes;
+create trigger cw_inicializar_matriz_organizacao
+after insert on public.organizacoes
+for each row execute function public.cw_inicializar_matriz();
+
 create or replace function public.cw_criar_organizacao(p_nome text)
 returns uuid
 language plpgsql
