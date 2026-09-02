@@ -24,7 +24,7 @@ Mapear globais, sobrescritas, listeners, eventos inline, dependências entre arq
 
 ### Fase 2B — consolidação da navegação
 
-Consolidar progressivamente a cadeia de navegação e reduzir sobrescritas, mantendo as rotas, permissões e telas cobertas pelos testes da Fase 2A.
+Consolidar a cadeia de navegação em um controlador oficial, mantendo as rotas, permissões e telas cobertas pelos testes da Fase 2A. A fase foi implementada na branch de refatoração e aguarda a validação manual da pré-visualização.
 
 ### Fase 2C — remoção do código obsoleto
 
@@ -42,7 +42,66 @@ Antes das alterações, `npm ci` e `npm test` concluíram com sucesso na branch 
 - [x] Navegação atual coberta por testes de caracterização.
 - [x] Testes executados depois das alterações.
 - [ ] Validação manual da Fase 2A antes da integração.
-- [ ] Fase 2B: consolidar a navegação sem alterar comportamento.
+- [x] Fase 2B: consolidar a navegação sem alterar comportamento.
 - [ ] Validar manualmente e automatizar a cobertura da Fase 2B.
 - [ ] Fase 2C: remover somente código comprovadamente obsoleto.
 - [ ] Validar manualmente e executar a suíte completa antes de integrar à `main`.
+
+## Arquitetura modular preparada na Fase 2B
+
+O CW passa a ser tratado arquiteturalmente como um ERP modular, sem expor módulos futuros na interface ou no banco. O registro declarativo distingue:
+
+- `core`: Dashboard, Empresa, Minha Conta e Suporte;
+- `shared`: Ativos e Equipamentos, Fornecedores, Cadastros Gerais, Relatórios e Grupos e Usuários;
+- `module`: funcionalidades pertencentes a um módulo contratável.
+
+Somente o módulo `manutencao` está registrado e ativo. Solicitações, Ordens de Serviço e Calendário pertencem exclusivamente a ele. Financeiro, Compras, Orçamento e Diário de Obras são possibilidades futuras documentadas, não implementadas e não expostas em rotas, menus, permissões, formulários ou Supabase.
+
+O `CWRouter` é a fonte oficial para interpretar o hash, resolver rotas estáticas e dinâmicas, montar URLs, navegar, alterar filtros, paginar, ativar o menu, renderizar e instalar os listeners. Os adaptadores globais `cwNavigate`, `cwSetRouteFilter`, `cwGoPage` e `cwNavigateLegacy` permanecem finos para compatibilidade.
+
+Todas as URLs existentes foram preservadas. `show` permanece como adaptador global único; as telas antigas necessárias são chamadas explicitamente por `showLegacyView`. Dashboard e o formulário de nova solicitação continuam usando a interface legada, assim como Minha Conta, Relatórios, Empresa e Grupos e Usuários mantêm seus renderizadores existentes.
+
+## Fornecedores e compatibilidade técnica
+
+A apresentação adotou **Fornecedores** no menu, títulos, mensagens e campos visíveis. Temporariamente, a rota continua `#prestadores`, a tabela continua `prestadores`, os vínculos continuam usando os nomes atuais e as funções/RPCs/policies não foram renomeadas.
+
+> Dívida técnica: o nome técnico `prestadores` será migrado para `fornecedores` em uma fase posterior, com compatibilidade para a rota e os relacionamentos antigos.
+
+## Itens reservados para a Fase 2C
+
+- avaliar e remover versões antigas sobrescritas de `loadUsers` e a referência `loadUsersBasic`;
+- avaliar wrappers intermediários de galeria e renderizadores antigos;
+- consolidar, somente após testes específicos, outras sobrescritas globais fora da navegação;
+- revisar handlers antigos substituídos durante o carregamento;
+- manter eventos inline até existir uma migração comportamental coberta por testes;
+- decidir a migração técnica de `prestadores` separadamente da limpeza de código.
+
+## Checklist manual da pré-visualização
+
+Os itens abaixo permanecem pendentes porque esta execução automatizada não acessa nem altera dados reais de produção:
+
+- [ ] Login.
+- [ ] Dashboard.
+- [ ] Solicitações.
+- [ ] Nova solicitação.
+- [ ] Detalhes de solicitação.
+- [ ] Filtros de solicitações.
+- [ ] Paginação.
+- [ ] Ordens de Serviço.
+- [ ] Detalhes de Ordem de Serviço.
+- [ ] Calendário.
+- [ ] Ativos e Equipamentos.
+- [ ] Fornecedores.
+- [ ] Grupos e Usuários.
+- [ ] Relatórios.
+- [ ] Cadastros Gerais.
+- [ ] Empresa.
+- [ ] Minha Conta.
+- [ ] Suporte.
+- [ ] Voltar e avançar no navegador.
+- [ ] Acesso direto por URL.
+- [ ] Rota antiga `#prestadores`.
+- [ ] Menu ativo.
+- [ ] Troca de empreendimento.
+- [ ] Perfil não aprovado.
+- [ ] Responsividade básica.

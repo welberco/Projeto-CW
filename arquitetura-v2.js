@@ -1,23 +1,34 @@
 /* CW Manutenção v2 — rotas, módulos e paginação. Segurança efetiva permanece no RLS. */
 const CWV2_PAGE_SIZE=20;
-const CWV2_ROUTES={
-  dashboard:['dashboard','Visão geral','Indicadores do empreendimento'],
-  solicitacoes:['cwSolicitacoes','Solicitações','Corretivas, agendamentos e programadas'],
-  'solicitacoes/nova':['nova','Nova solicitação','Cadastre uma nova solicitação'],
-  'ordens-servico':['cwOrdens','Ordens de Serviço','Planejamento, execução e aceite'],
-  calendario:['cwCalendario','Calendário','Programação de serviços'],
-  ativos:['cwAtivos','Ativos e Equipamentos','Cadastro, hierarquia e manutenção'],
-  prestadores:['cwPrestadores','Prestadores','Equipe própria e empresas terceirizadas'],
-  usuarios:['usuarios','Grupos e Usuários','Perfis, operações e acessos'],
-  relatorios:['relatorios','Relatórios','Indicadores e arquivos personalizados'],
-  cadastros:['cwCadastros','Cadastros Gerais','Tipos, naturezas, prioridades e centros de custo'],
-  empresa:['organizacao','Empresa','Dados e identidade do empreendimento'],
-  conta:['minhaConta','Minha Conta','Seus dados e senha'],
-  suporte:['cwSuporte','Suporte','Ajuda, manual e contato com a CW Engenharia']
+const CW_SCOPES={
+  core:{id:'core',label:'Núcleo'},
+  shared:{id:'shared',label:'Compartilhado'},
+  module:{id:'module',label:'Módulo'}
 };
+const CW_MODULES={manutencao:{id:'manutencao',label:'Manutenção',active:true}};
+const CW_ROUTES={
+  dashboard:{path:'dashboard',scope:'core',module:null,view:'dashboard',title:'Visão geral',subtitle:'Indicadores do empreendimento',nav:'dashboard',legacy:true,render:()=>showLegacyView('dashboard')},
+  solicitacoes:{path:'solicitacoes',scope:'module',module:'manutencao',view:'cwSolicitacoes',title:'Solicitações',subtitle:'Corretivas, agendamentos e programadas',nav:'solicitacoes',legacy:false,render:state=>cwRenderSolicitacoes(state.query)},
+  'solicitacoes/nova':{path:'solicitacoes/nova',scope:'module',module:'manutencao',view:'nova',title:'Nova solicitação',subtitle:'Cadastre uma nova solicitação',nav:'solicitacoes',legacy:true,render:()=>showLegacyView('nova')},
+  'ordens-servico':{path:'ordens-servico',scope:'module',module:'manutencao',view:'cwOrdens',title:'Ordens de Serviço',subtitle:'Planejamento, execução e aceite',nav:'ordens-servico',legacy:false,render:state=>cwRenderOrdens(state.query)},
+  calendario:{path:'calendario',scope:'module',module:'manutencao',view:'cwCalendario',title:'Calendário',subtitle:'Programação de serviços',nav:'calendario',legacy:false,render:null},
+  ativos:{path:'ativos',scope:'shared',module:null,view:'cwAtivos',title:'Ativos e Equipamentos',subtitle:'Cadastro, hierarquia e manutenção',nav:'ativos',legacy:false,render:()=>cwRenderAtivos()},
+  prestadores:{path:'prestadores',scope:'shared',module:null,view:'cwPrestadores',title:'Fornecedores',subtitle:'Equipe própria e empresas terceirizadas',nav:'prestadores',legacy:false,render:()=>cwRenderPrestadores()},
+  usuarios:{path:'usuarios',scope:'shared',module:null,view:'usuarios',title:'Grupos e Usuários',subtitle:'Perfis, operações e acessos',nav:'usuarios',legacy:true,render:()=>loadUsers()},
+  relatorios:{path:'relatorios',scope:'shared',module:null,view:'relatorios',title:'Relatórios',subtitle:'Indicadores e arquivos personalizados',nav:'relatorios',legacy:true,render:()=>openReports()},
+  cadastros:{path:'cadastros',scope:'shared',module:null,view:'cwCadastros',title:'Cadastros Gerais',subtitle:'Tipos, naturezas, prioridades e centros de custo',nav:'cadastros',legacy:false,render:()=>cwRenderCadastros()},
+  empresa:{path:'empresa',scope:'core',module:null,view:'organizacao',title:'Empresa',subtitle:'Dados e identidade do empreendimento',nav:'empresa',legacy:true,render:()=>openOrganization()},
+  conta:{path:'conta',scope:'core',module:null,view:'minhaConta',title:'Minha Conta',subtitle:'Seus dados e senha',nav:'conta',legacy:true,render:()=>openMyAccount()},
+  suporte:{path:'suporte',scope:'core',module:null,view:'cwSuporte',title:'Suporte',subtitle:'Ajuda, manual e contato com a CW Engenharia',nav:'suporte',legacy:false,render:null}
+};
+const CW_DYNAMIC_ROUTES=[
+  {path:'solicitacoes/:id',pattern:/^solicitacoes\/([1-9]\d*)$/,scope:'module',module:'manutencao',view:'cwSolicitacoes',title:'Solicitação',subtitle:'Detalhes e histórico',nav:'solicitacoes',legacy:false,render:state=>cwRenderSolicitacao(state.params.id)},
+  {path:'ordens-servico/:id',pattern:/^ordens-servico\/([1-9]\d*)$/,scope:'module',module:'manutencao',view:'cwOrdens',title:'Ordem de Serviço',subtitle:'Planejamento, execução e aceite',nav:'ordens-servico',legacy:false,render:state=>cwRenderOrdem(state.params.id)}
+];
+const CW_LEGACY_ROUTE_ALIASES={dashboard:'dashboard',demandas:'solicitacoes',nova:'solicitacoes/nova',usuarios:'usuarios',minhaConta:'conta',relatorios:'relatorios',organizacao:'empresa'};
 const CWV2_MENU=[
   ['dashboard','▦','Dashboard'],['solicitacoes','☷','Solicitações'],['ordens-servico','▣','Ordens de Serviço'],
-  ['calendario','◷','Calendário'],['ativos','◇','Ativos e Equipamentos'],['prestadores','♙','Prestadores'],
+  ['calendario','◷','Calendário'],['ativos','◇','Ativos e Equipamentos'],['prestadores','♙','Fornecedores<span hidden>Prestadores</span>'],
   ['usuarios','♚','Grupos e Usuários'],['relatorios','▤','Relatórios'],['cadastros','⚙','Cadastros Gerais'],
   ['empresa','▧','Empresa'],['conta','○','Minha Conta'],['suporte','?','Suporte']
 ];
@@ -28,7 +39,7 @@ const CWV2_PERMISSION_LABELS={
   os_visualizar_todas:'Visualizar OS completas',os_visualizar_resumo:'Visualizar resumo das OS vinculadas',os_criar:'Criar e gerar OS',
   os_editar:'Planejar e editar OS',os_concluir:'Concluir OS',os_cancelar:'Cancelar OS',os_aceitar:'Registrar aceite ou recusa',
   ativos_visualizar:'Visualizar ativos e histórico',ativos_editar:'Cadastrar e editar ativos',planos_editar:'Gerenciar planos periódicos',
-  prestadores_visualizar:'Visualizar prestadores',prestadores_editar:'Cadastrar e editar prestadores',usuarios_gerenciar:'Gerenciar usuários',
+  prestadores_visualizar:'Visualizar fornecedores',prestadores_editar:'Cadastrar e editar fornecedores',usuarios_gerenciar:'Gerenciar usuários',
   configuracoes_editar:'Alterar configurações da empresa',relatorios_emitir:'Emitir relatórios',custos_visualizar:'Visualizar custos',
   custos_editar:'Lançar custos',historico_visualizar:'Visualizar históricos',galeria_visualizar:'Visualizar galeria',galeria_excluir:'Excluir arquivos da galeria'
 };
@@ -49,62 +60,33 @@ for(const [id,html] of Object.entries({
   cwAtivos:'<div id="cwAtivosConteudo"></div>',
   cwPrestadores:'<div id="cwPrestadoresConteudo"></div>',
   cwCadastros:'<div id="cwCadastrosConteudo"></div>',
-  cwSuporte:'<article class="panel"><h2>Central de suporte</h2><div class="cw-help-grid"><section><h3>Primeiros passos</h3><p>Cadastre operações, prestadores e ativos antes de criar planos recorrentes.</p></section><section><h3>Dúvidas frequentes</h3><p>Consulte o manual da empresa ou solicite apoio ao administrador.</p></section><section><h3>CW Engenharia</h3><p>Desenvolvimento e suporte técnico do sistema CW Manutenção.</p></section></div></article>'
+  cwSuporte:'<article class="panel"><h2>Central de suporte</h2><div class="cw-help-grid"><section><h3>Primeiros passos</h3><p>Cadastre operações, fornecedores e ativos antes de criar planos recorrentes.</p></section><section><h3>Dúvidas frequentes</h3><p>Consulte o manual da empresa ou solicite apoio ao administrador.</p></section><section><h3>CW Engenharia</h3><p>Desenvolvimento e suporte técnico do sistema CW Manutenção.</p></section></div></article>'
 })){
   if(!el(id)){const section=document.createElement('section');section.id=id;section.className='view';section.innerHTML=html;cwMain.appendChild(section)}
 }
 
 function cwCan(action){return hasPermission(action)}
-function cwRouteState(){const raw=location.hash.replace(/^#\/?/,'')||'dashboard',parts=raw.split('?');return{path:parts[0]||'dashboard',params:new URLSearchParams(parts[1]||'')}}
-function cwUrl(path,params){const query=params&&String(params);return`#/${path}${query?'?'+query:''}`}
-function cwNavigate(path,params){const url=cwUrl(path,params);if(location.hash===url)cwRenderRoute();else location.hash=url}
-function cwSetRouteFilter(name,value){const state=cwRouteState();value?state.params.set(name,value):state.params.delete(name);state.params.delete('pagina');cwNavigate(state.path,state.params)}
-function cwActiveNav(path){return path.startsWith('solicitacoes')?'solicitacoes':path.startsWith('ordens-servico')?'ordens-servico':path}
-function cwInstallNavigation(){
-  const nav=el('sidebar').querySelector('nav');
-  nav.innerHTML=CWV2_MENU.map(([route,icon,label])=>`<button class="nav" data-route="${route}"><span>${icon}</span>${label}</button>`).join('');
-  nav.onclick=e=>{const button=e.target.closest('[data-route]');if(button)cwNavigate(button.dataset.route)};
-  document.querySelectorAll('[data-new]').forEach(button=>button.onclick=()=>cwNavigate('solicitacoes/nova'));
-}
-cwInstallNavigation();
-
-const cwLegacyShow=show;
-show=function(name){
-  const map={dashboard:'dashboard',demandas:'solicitacoes',nova:'solicitacoes/nova',usuarios:'usuarios',minhaConta:'conta',relatorios:'relatorios',organizacao:'empresa'};
-  if(map[name]){cwNavigate(map[name]);return}
-  cwLegacyShow(name);
+const CWRouter={
+  installed:false,
+  state(){const raw=location.hash.replace(/^#\/?/,'')||'dashboard',separator=raw.indexOf('?'),path=(separator<0?raw:raw.slice(0,separator)).replace(/\/$/,'')||'dashboard',query=new URLSearchParams(separator<0?'':raw.slice(separator+1));return{path,query,params:{}}},
+  url(path,query){const value=query&&String(query);return`#/${path}${value?'?'+value:''}`},
+  resolve(path){const fixed=CW_ROUTES[path];if(fixed)return{...fixed,route:fixed.path,params:{}};for(const dynamic of CW_DYNAMIC_ROUTES){const match=path.match(dynamic.pattern);if(match)return{...dynamic,route:dynamic.path,params:{id:Number(match[1])}}}return null},
+  navigate(path,query){const url=this.url(path,query);if(location.hash===url)this.render();else location.hash=url},
+  setFilter(name,value){const state=this.state();value?state.query.set(name,value):state.query.delete(name);state.query.delete('pagina');this.navigate(state.path,state.query)},
+  goPage(path,page){const state=this.state();state.query.set('pagina',page);this.navigate(path,state.query)},
+  activeNav(route){return route?.nav||null},
+  async render(){if(!profile||profile.aprovacao!=='aprovado'||!profile.ativo)return;const state=this.state(),route=this.resolve(state.path);if(!route){this.navigate('dashboard');return}state.params=route.params;document.querySelectorAll('.view').forEach(node=>node.classList.remove('active'));el(route.view)?.classList.add('active');el('title').textContent=route.title;el('subtitle').textContent=route.subtitle;el('sidebar').classList.remove('open');document.querySelectorAll('#sidebar [data-route]').forEach(node=>node.classList.toggle('active',node.dataset.route===this.activeNav(route)));if(route.render)await route.render(state)},
+  install(){if(this.installed)return;this.installed=true;const nav=el('sidebar').querySelector('nav');nav.innerHTML=CWV2_MENU.map(([route,icon,label])=>`<button class="nav" data-route="${route}"><span>${icon}</span>${label}</button>`).join('');nav.onclick=e=>{const button=e.target.closest('[data-route]');if(button)this.navigate(button.dataset.route)};document.querySelectorAll('[data-new]').forEach(button=>button.onclick=()=>this.navigate('solicitacoes/nova'));window.addEventListener('hashchange',()=>this.render());window.addEventListener('popstate',()=>this.render())}
 };
-
-async function cwRenderRoute(){
-  if(!profile||profile.aprovacao!=='aprovado'||!profile.ativo)return;
-  const state=cwRouteState(),base=state.path.replace(/\/$/,'');
-  let route=CWV2_ROUTES[base],detail=null;
-  if(/^solicitacoes\/\d+$/.test(base)){route=['cwSolicitacoes','Solicitação','Detalhes e histórico'];detail=['solicitacao',Number(base.split('/')[1])]}
-  if(/^ordens-servico\/\d+$/.test(base)){route=['cwOrdens','Ordem de Serviço','Planejamento, execução e aceite'];detail=['os',Number(base.split('/')[1])]}
-  if(!route){cwNavigate('dashboard');return}
-  document.querySelectorAll('.view').forEach(node=>node.classList.remove('active'));
-  el(route[0])?.classList.add('active');el('title').textContent=route[1];el('subtitle').textContent=route[2];el('sidebar').classList.remove('open');
-  document.querySelectorAll('#sidebar [data-route]').forEach(node=>node.classList.toggle('active',node.dataset.route===cwActiveNav(base)));
-  if(base==='dashboard'){cwLegacyShow('dashboard');document.querySelectorAll('#sidebar [data-route]').forEach(node=>node.classList.toggle('active',node.dataset.route==='dashboard'));return}
-  if(base==='solicitacoes')await cwRenderSolicitacoes(state.params);
-  else if(base==='solicitacoes/nova'){cwLegacyShow('nova');document.querySelectorAll('#sidebar [data-route]').forEach(node=>node.classList.toggle('active',node.dataset.route==='solicitacoes'));}
-  else if(detail?.[0]==='solicitacao')await cwRenderSolicitacao(detail[1]);
-  else if(base==='ordens-servico')await cwRenderOrdens(state.params);
-  else if(detail?.[0]==='os')await cwRenderOrdem(detail[1]);
-  else if(base==='ativos')await cwRenderAtivos();
-  else if(base==='prestadores')await cwRenderPrestadores();
-  else if(base==='cadastros')await cwRenderCadastros();
-  else if(base==='usuarios')await loadUsers();
-  else if(base==='relatorios')openReports();
-  else if(base==='empresa')openOrganization();
-  else if(base==='conta')openMyAccount();
-}
-window.addEventListener('hashchange',cwRenderRoute);
-window.addEventListener('popstate',cwRenderRoute);
+function cwNavigate(path,params){return CWRouter.navigate(path,params)}
+function cwSetRouteFilter(name,value){return CWRouter.setFilter(name,value)}
+function cwGoPage(path,page){return CWRouter.goPage(path,page)}
+function cwNavigateLegacy(name){const route=CW_LEGACY_ROUTE_ALIASES[name];if(route){CWRouter.navigate(route);return}showLegacyView(name)}
+function cwRenderRoute(){return CWRouter.render()}
+CWRouter.install();
 
 function cwDate(value,withTime=false){if(!value)return'—';return new Intl.DateTimeFormat('pt-BR',withTime?{dateStyle:'short',timeStyle:'short'}:{dateStyle:'short'}).format(new Date(value))}
 function cwPager(path,params,page,total){const pages=Math.max(1,Math.ceil(total/CWV2_PAGE_SIZE)),p=Number(page)||1;if(pages===1)return'';const button=(n,label,disabled)=>`<button class="secondary" ${disabled?'disabled':''} onclick="cwGoPage('${path}',${n})">${label}</button>`;return`<div class="cw-pager">${button(p-1,'← Anterior',p<=1)}<span>Página ${p} de ${pages} · ${total} registros</span>${button(p+1,'Próxima →',p>=pages)}</div>`}
-function cwGoPage(path,page){const s=cwRouteState();s.params.set('pagina',page);cwNavigate(path,s.params)}
 
 async function cwRenderSolicitacoes(params){
   const target=el('cwSolicitacaoLista'),page=Math.max(1,Number(params.get('pagina'))||1),type=params.get('tipo')||'',status=params.get('status')||'',from=params.get('inicio')||'',to=params.get('fim')||'';
@@ -146,9 +128,9 @@ async function cwRenderAtivos(){const target=el('cwAtivosConteudo');const {data,
 function cwShowAssetForm(){el('cwAssetForm').innerHTML=`<form class="demand-form cw-inline-form" onsubmit="cwCreateAsset(event)"><div class="field"><label>Nome *</label><input name="nome" required></div><div class="field"><label>Categoria</label><input name="categoria"></div><div class="field"><label>Local</label><input name="local"></div><div class="field"><label>Fabricante</label><input name="fabricante"></div><div class="field"><label>Modelo</label><input name="modelo"></div><div class="field"><label>Número de série</label><input name="numero_serie"></div><div class="field"><label>Data de aquisição</label><input type="date" name="data_aquisicao"></div><div class="field"><label>Garantia até</label><input type="date" name="garantia_ate"></div><div class="actions"><button class="primary">Cadastrar ativo</button></div></form>`}
 async function cwCreateAsset(event){event.preventDefault();const f=event.target,x=Object.fromEntries(new FormData(f)),b=f.querySelector('button');b.disabled=true;const {data:code,error:codeError}=await db.rpc('cw_proximo_codigo',{p_org:currentOrganizationId(),p_entidade:'EQP',p_data:new Date().toISOString().slice(0,10)});if(codeError){b.disabled=false;toast(codeError.message);return}const {error}=await db.from('ativos').insert({...x,organizacao_id:currentOrganizationId(),codigo:code,criado_por:session.user.id,data_aquisicao:x.data_aquisicao||null,garantia_ate:x.garantia_ate||null});b.disabled=false;if(error){toast(error.message);return}toast('Ativo cadastrado.');cwRenderAtivos()}
 
-async function cwRenderPrestadores(){const target=el('cwPrestadoresConteudo');const {data,error}=await db.from('prestadores').select('*').eq('organizacao_id',currentOrganizationId()).order('nome');if(error){target.innerHTML=`<p class="error">${esc(error.message)}</p>`;return}target.innerHTML=`<article class="panel"><div class="heading"><span><h2>Prestadores</h2><p>Equipe própria e terceirizados</p></span>${cwCan('prestadores_editar')?'<button class="primary" onclick="cwShowProviderForm()">＋ Novo prestador</button>':''}</div><div id="cwProviderForm"></div>${data?.length?`<div class="cw-card-list">${data.map(p=>`<article><span><strong>${esc(p.nome)}</strong><small>${p.tipo_vinculo==='proprio'?'Próprio':'Terceirizado'} · ${esc(p.especialidades?.join(', ')||'Sem especialidade')} · ${esc(p.telefone||p.email||'Sem contato')}</small></span>${badge(p.ativo?'Ativo':'Inativo','status')}</article>`).join('')}</div>`:'<p class="muted">Nenhum prestador cadastrado.</p>'}</article>`}
-function cwShowProviderForm(){el('cwProviderForm').innerHTML=`<form class="demand-form cw-inline-form" onsubmit="cwCreateProvider(event)"><div class="field"><label>Nome/Razão social *</label><input name="nome" required></div><div class="field"><label>Vínculo *</label><select name="tipo_vinculo"><option value="proprio">Próprio</option><option value="terceirizado">Terceirizado</option></select></div><div class="field"><label>Pessoa</label><select name="tipo_pessoa"><option value="juridica">Jurídica</option><option value="fisica">Física</option></select></div><div class="field"><label>CPF/CNPJ</label><input name="cpf_cnpj"></div><div class="field"><label>E-mail</label><input type="email" name="email"></div><div class="field"><label>Telefone</label><input name="telefone"></div><div class="field wide"><label>Especialidades (separadas por vírgula)</label><input name="especialidades"></div><div class="actions"><button class="primary">Cadastrar prestador</button></div></form>`}
-async function cwCreateProvider(event){event.preventDefault();const f=event.target,x=Object.fromEntries(new FormData(f)),b=f.querySelector('button');b.disabled=true;x.especialidades=x.especialidades.split(',').map(v=>v.trim()).filter(Boolean);const {error}=await db.from('prestadores').insert({...x,organizacao_id:currentOrganizationId(),criado_por:session.user.id});b.disabled=false;if(error){toast(error.message);return}toast('Prestador cadastrado.');cwRenderPrestadores()}
+async function cwRenderPrestadores(){const target=el('cwPrestadoresConteudo');const {data,error}=await db.from('prestadores').select('*').eq('organizacao_id',currentOrganizationId()).order('nome');if(error){target.innerHTML=`<p class="error">${esc(error.message)}</p>`;return}target.innerHTML=`<article class="panel"><div class="heading"><span><h2>Fornecedores</h2><p>Equipe própria e empresas terceirizadas</p></span>${cwCan('prestadores_editar')?'<button class="primary" onclick="cwShowProviderForm()">＋ Novo fornecedor</button>':''}</div><div id="cwProviderForm"></div>${data?.length?`<div class="cw-card-list">${data.map(p=>`<article><span><strong>${esc(p.nome)}</strong><small>${p.tipo_vinculo==='proprio'?'Próprio':'Terceirizado'} · ${esc(p.especialidades?.join(', ')||'Sem especialidade')} · ${esc(p.telefone||p.email||'Sem contato')}</small></span>${badge(p.ativo?'Ativo':'Inativo','status')}</article>`).join('')}</div>`:'<p class="muted">Nenhum fornecedor cadastrado.</p>'}</article>`}
+function cwShowProviderForm(){el('cwProviderForm').innerHTML=`<form class="demand-form cw-inline-form" onsubmit="cwCreateProvider(event)"><div class="field"><label>Nome/Razão social *</label><input name="nome" required></div><div class="field"><label>Vínculo *</label><select name="tipo_vinculo"><option value="proprio">Próprio</option><option value="terceirizado">Terceirizado</option></select></div><div class="field"><label>Pessoa</label><select name="tipo_pessoa"><option value="juridica">Jurídica</option><option value="fisica">Física</option></select></div><div class="field"><label>CPF/CNPJ</label><input name="cpf_cnpj"></div><div class="field"><label>E-mail</label><input type="email" name="email"></div><div class="field"><label>Telefone</label><input name="telefone"></div><div class="field wide"><label>Especialidades (separadas por vírgula)</label><input name="especialidades"></div><div class="actions"><button class="primary">Cadastrar fornecedor</button></div></form>`}
+async function cwCreateProvider(event){event.preventDefault();const f=event.target,x=Object.fromEntries(new FormData(f)),b=f.querySelector('button');b.disabled=true;x.especialidades=x.especialidades.split(',').map(v=>v.trim()).filter(Boolean);const {error}=await db.from('prestadores').insert({...x,organizacao_id:currentOrganizationId(),criado_por:session.user.id});b.disabled=false;if(error){toast(error.message);return}toast('Fornecedor cadastrado.');cwRenderPrestadores()}
 
 async function cwRenderCadastros(){const target=el('cwCadastrosConteudo'),tables=[['tipos_servico','Tipos de serviço'],['naturezas_servico','Naturezas'],['prioridades','Prioridades'],['centros_custo','Centros de custo'],['operacoes','Operações/lojas']];const results=await Promise.all(tables.map(([t])=>db.from(t).select('id,nome,ativo').eq('organizacao_id',currentOrganizationId()).order('nome')));target.innerHTML=`<div class="cw-register-grid">${tables.map(([table,label],i)=>`<article class="panel"><div class="heading"><span><h2>${label}</h2><p>${results[i].data?.length||0} itens</p></span></div><div class="cw-tags">${(results[i].data||[]).map(x=>`<span>${esc(x.nome)}</span>`).join('')||'<p class="muted">Nenhum item.</p>'}</div>${cwCan('configuracoes_editar')?`<form onsubmit="cwAddRegister(event,'${table}')" class="cw-mini-form"><input name="nome" required placeholder="Novo item"><button class="primary">Adicionar</button></form>`:''}</article>`).join('')}</div>`}
 async function cwAddRegister(event,table){event.preventDefault();const f=event.target,{error}=await db.from(table).insert({organizacao_id:currentOrganizationId(),nome:f.nome.value.trim()});if(error){toast(error.message);return}cwRenderCadastros()}
@@ -186,4 +168,4 @@ const cwEnterAppBase=enterApp;
 enterApp=async function(current){const result=await cwEnterAppBase(current);if(profile?.ativo&&profile?.aprovacao==='aprovado'){el('toggleAuth').style.display='none';signupMode=false;await cwRenderRoute()}return result};
 const cwEnterpriseChange=el('enterpriseSelect').onchange;
 el('enterpriseSelect').onchange=async function(event){await cwEnterpriseChange.call(this,event);await cwRenderRoute()};
-if(!location.hash)history.replaceState(null,'',cwUrl('dashboard'));
+if(!location.hash)history.replaceState(null,'',CWRouter.url('dashboard'));

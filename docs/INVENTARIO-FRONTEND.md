@@ -180,3 +180,63 @@ Nenhum candidato foi removido ou marcado como `REMOVÍVEL AGORA` nesta fase: os 
 - Duplicar `hashchange` causa renderizações e consultas repetidas.
 - Transformar o redirecionamento de rota desconhecida pode criar ciclo de hash.
 - Migrar dashboard ou nova solicitação exige reproduzir integralmente os efeitos de `cwLegacyShow`, inclusive menu, título e formulários.
+
+## Resultado da Fase 2B
+
+### Estrutura anterior e estrutura consolidada
+
+Antes da Fase 2B, `app.js` declarava `show`, preservava-a em `showBase` e depois sobrescrevia `show`. A arquitetura v2 capturava essa segunda versão em `cwLegacyShow` e sobrescrevia `show` novamente. A resolução, o menu, os filtros e a renderização estavam distribuídos entre várias funções.
+
+Depois da consolidação:
+
+1. `app.js` declara `showLegacyBase`, responsável apenas pelas seções básicas da interface antiga;
+2. `showLegacyView` explicita a seleção dos renderizadores legados;
+3. `show` é declarado uma única vez e delega a `cwNavigateLegacy` quando a arquitetura v2 está disponível;
+4. `CWRouter` centraliza estado, URL, resolução, navegação, filtros, paginação, menu ativo, renderização e instalação;
+5. `CW_LEGACY_ROUTE_ALIASES` documenta a tradução dos nomes antigos;
+6. `cwNavigate`, `cwSetRouteFilter` e `cwGoPage` apenas delegam ao controlador.
+
+`showBase` e `cwLegacyShow` foram removidos. Não há nova sobrescrita de `show`.
+
+### Registro declarativo
+
+`CW_SCOPES` registra `core`, `shared` e `module`. `CW_MODULES` registra somente `manutencao` como módulo funcional. `CW_ROUTES` descreve as rotas estáticas, enquanto `CW_DYNAMIC_ROUTES` resolve `solicitacoes/:id` e `ordens-servico/:id`, aceitando apenas inteiros positivos.
+
+| Escopo | Rotas |
+| --- | --- |
+| `core` | `dashboard`, `empresa`, `conta`, `suporte` |
+| `shared` | `ativos`, `prestadores`, `cadastros`, `relatorios`, `usuarios` |
+| `module/manutencao` | `solicitacoes`, `solicitacoes/nova`, `solicitacoes/:id`, `ordens-servico`, `ordens-servico/:id`, `calendario` |
+
+Financeiro, Compras, Orçamento e Diário de Obras permanecem apenas como previsão documental. Nenhuma estrutura funcional desses módulos foi criada.
+
+### Compatibilidade e telas legadas
+
+As URLs públicas permanecem inalteradas. A rota técnica `#prestadores` continua válida; não existe `#fornecedores`. O termo visível passou a ser **Fornecedores**, mas tabela, consultas, permissões, funções e relacionamentos continuam usando `prestadores`. Um marcador oculto mantém compatibilidade com a caracterização anterior sem exibir o nome antigo.
+
+Continuam legados e explicitamente registrados:
+
+- Dashboard → `showLegacyView('dashboard')`;
+- Nova solicitação → `showLegacyView('nova')`;
+- Minha Conta → `openMyAccount()`;
+- Relatórios → `openReports()`;
+- Empresa → `openOrganization()`;
+- Grupos e Usuários → `loadUsers()`.
+
+`cwNavigateLegacy` preserva os aliases `dashboard`, `demandas`, `nova`, `usuarios`, `minhaConta`, `relatorios` e `organizacao`. Nomes fora do mapa são delegados explicitamente a `showLegacyView`.
+
+### Listeners e riscos restantes
+
+`CWRouter.install()` é idempotente e instala um listener `hashchange`, um `popstate` e um handler delegado no menu. Chamadas repetidas não duplicam esses listeners nem o handler do menu.
+
+Riscos e candidatos para a Fase 2C:
+
+- versões sobrescritas de `loadUsers` e `loadUsersBasic`: **PRECISA DE TESTE**;
+- wrappers intermediários de galeria: **PRECISA DE TESTE**;
+- `cwEnterAppBase` e `cwEnterpriseChange`: **AINDA UTILIZADO**;
+- renderizadores legados listados acima: **AINDA UTILIZADO**;
+- eventos inline: **COMPATIBILIDADE TEMPORÁRIA**;
+- nomes técnicos `prestadores`: **COMPATIBILIDADE TEMPORÁRIA**;
+- handlers antigos substituídos durante o carregamento: **PRECISA DE TESTE**.
+
+A migração técnica de `prestadores` para `fornecedores` exige fase própria, incluindo banco, RLS, relacionamentos e compatibilidade de URLs. Ela não deve ser misturada à remoção de código obsoleto.
