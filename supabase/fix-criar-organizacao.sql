@@ -70,8 +70,9 @@ begin
 end;
 $$;
 
-create or replace function public.cw_listar_organizacoes()
-returns table(id uuid, nome text)
+drop function if exists public.cw_listar_organizacoes();
+create function public.cw_listar_organizacoes()
+returns table(id uuid, nome text, slug text)
 language plpgsql
 stable
 security definer
@@ -83,7 +84,7 @@ begin
   end if;
 
   return query
-  select o.id, o.nome
+  select o.id, o.nome, o.slug
   from public.organizacoes o
   order by o.nome;
 end;
