@@ -1,5 +1,8 @@
 /* Multiempreendimento: controles são conveniência; o banco valida cada operação. */
 let enterpriseOptions=[],authRevision=0;
+function companyBasePath(){const parts=location.pathname.split('/').filter(Boolean);return location.hostname.endsWith('github.io')&&parts.length?'/'+parts[0]:''}
+function requestedCompanySlug(){const base=companyBasePath(),path=location.pathname.replace(new RegExp('^'+base.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')),'');const slug=path.split('/').filter(Boolean)[0]||'';return slug==='index.html'?'':slug}
+function setCompanyAddress(company,replace=true){if(!company?.slug)return;const path=`${companyBasePath()}/${company.slug}`;if(location.pathname===path)return;history[replace?'replaceState':'pushState']({},'',path+location.search+location.hash);document.title=`CW Manutenção — ${company.nome}`}
 PERMISSION_LABELS.gerenciar_empreendimento='Editar dados do empreendimento';
 const managedRoles=()=>isAdmin()?['empreendimento','gestor_manutencao','tecnico','lojista']:['gestor_manutencao','tecnico','lojista'];
 const roleOptions=(selected='lojista')=>managedRoles().map(r=>`<option value="${r}" ${r===selected?'selected':''}>${ROLE_LABELS[r]}</option>`).join('');
@@ -17,14 +20,18 @@ function approvalView(message){
   document.querySelector('.shell').style.display='none';
 }
 async function refreshEnterpriseOptions(){
-  const {data,error}=isAdmin()?await db.rpc('cw_listar_organizacoes'):await db.from('organizacoes').select('id,nome').order('nome');
+  const {data,error}=isAdmin()?await db.rpc('cw_listar_organizacoes'):await db.from('organizacoes').select('id,nome,slug').order('nome');
   if(error)throw error;
   enterpriseOptions=data||[];
   if(isAdmin()){
-    if(!enterpriseOptions.some(o=>o.id===activeOrgId))activeOrgId=profile.organizacao_id||enterpriseOptions[0]?.id;
+    const addressCompany=enterpriseOptions.find(o=>o.slug===requestedCompanySlug());
+    if(addressCompany)activeOrgId=addressCompany.id;
+    else if(!enterpriseOptions.some(o=>o.id===activeOrgId))activeOrgId=profile.organizacao_id||enterpriseOptions[0]?.id;
     el('enterpriseSelect').innerHTML=enterpriseOptions.map(o=>`<option value="${o.id}">${esc(o.nome)}</option>`).join('');
     el('enterpriseSelect').value=activeOrgId||'';
   }
+  const activeCompany=enterpriseOptions.find(o=>o.id===currentOrganizationId())||enterpriseOptions[0];
+  if(activeCompany)setCompanyAddress(activeCompany);
   el('enterpriseContext').style.display=isAdmin()?'':'none';
 }
 loadProfile=async function(){
@@ -95,6 +102,7 @@ el('pendingLogout').onclick=()=>db.auth.signOut();
 el('checkApproval').onclick=async()=>{const b=el('checkApproval');b.disabled=true;try{await enterApp(session)}finally{b.disabled=false}};
 el('enterpriseSelect').onchange=async()=>{
   activeOrgId=el('enterpriseSelect').value;demands=[];reportCache=null;usersCache=[];editingId=null;
+  setCompanyAddress(enterpriseOptions.find(o=>o.id===activeOrgId),false);
   el('userEditor')?.style.setProperty('display','none');el('detailsContent').innerHTML='';el('detailsAttachments').innerHTML='';
   try{await loadData();show('dashboard')}catch(error){toast(error.message)}
 };
