@@ -36,7 +36,15 @@ Deno.serve(async (req) => {
     if (allowedError || allowed !== true) throw new Error('Sem permissão para gerenciar este usuário ou empreendimento')
     const nome = String(body.nome || '').trim()
     const email = String(body.email || '').trim()
+    const operationId = body.operacao_id ? Number(body.operacao_id) : null
     if (!nome || !email.includes('@')) throw new Error('Nome e e-mail são obrigatórios')
+    if (operationId !== null && (!Number.isInteger(operationId) || operationId <= 0)) throw new Error('Operação inválida')
+    let operation = null
+    if (operationId !== null) {
+      const result = await caller.from('operacoes').select('id,nome').eq('id', operationId).eq('organizacao_id', org).eq('ativo', true).single()
+      if (result.error || !result.data) throw new Error('Operação não encontrada neste empreendimento')
+      operation = result.data
+    }
     const aprovacao = body.action === 'create' ? 'aprovado' : body.aprovacao
     const ativo = body.action === 'create' ? true : body.ativo
     if (!['pendente', 'aprovado', 'rejeitado'].includes(aprovacao) || typeof ativo !== 'boolean') throw new Error('Aprovação/acesso inválidos')
@@ -54,7 +62,7 @@ Deno.serve(async (req) => {
       if (error) throw error
     }
     const { error: profileError } = await caller.rpc('cw_salvar_usuario', {
-      p_usuario: userId, p_nome: nome, p_email: email, p_loja: String(body.loja || ''),
+      p_usuario: userId, p_nome: nome, p_email: email, p_loja: operation?.nome || '',
       p_papel: papel, p_ativo: ativo, p_aprovacao: aprovacao,
     })
     if (profileError) {
@@ -62,6 +70,12 @@ Deno.serve(async (req) => {
       throw new Error(body.action === 'create'
         ? 'Conta criada, mas permanece pendente. Abra o perfil e conclua a aprovação. ' + profileError.message
         : 'Não foi possível concluir a atualização do perfil. ' + profileError.message)
+    }
+    const { error: unlinkError } = await caller.from('usuario_operacoes').delete().eq('usuario_id', userId)
+    if (unlinkError) throw new Error('Perfil salvo, mas não foi possível atualizar a operação. ' + unlinkError.message)
+    if (operationId !== null) {
+      const { error: linkError } = await caller.from('usuario_operacoes').insert({ usuario_id: userId, operacao_id: operationId, principal: true })
+      if (linkError) throw new Error('Perfil salvo, mas não foi possível vincular a operação. ' + linkError.message)
     }
     return new Response(JSON.stringify({ user_id: userId, updated: true }), { headers: cors })
   } catch (error) {
