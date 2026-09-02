@@ -95,6 +95,7 @@ assert.equal((await act(manager,"select tem_permissao_usuario('apagar_demanda') 
 console.log('PASS: isolamento de 2 empresas, 7 usuários, pendência, promoção, matriz, RPCs, Storage, reexecução preservando permissões.');
 
 await db.exec(read('supabase/arquitetura-v2.sql'));
+await db.exec(read('supabase/organizacoes-slug.sql'));
 await db.exec(read('supabase/fix-criar-organizacao.sql'));
 assert.equal((await db.query("select papel from perfis where id=$1",[standard])).rows[0].papel,'usuario_padrao');
 assert.equal((await db.query("select papel from perfis where id=$1",[manager])).rows[0].papel,'gestor');
@@ -113,7 +114,9 @@ assert.equal((await act(manager,'select * from ativos')).length,1);
 await act(admin,"update permissoes_perfis set permitido=true where organizacao_id=$1 and papel='tecnico' and acao='os_criar'",[A]);
 const novaOrg=(await act(admin,"select cw_criar_organizacao('Empresa D') id"))[0].id;
 assert.ok(novaOrg);
-assert.ok((await act(admin,'select * from cw_listar_organizacoes()')).some(o=>o.id===novaOrg));
+const empresas=await act(admin,'select * from cw_listar_organizacoes()');
+assert.ok(empresas.some(o=>o.id===novaOrg));
+assert.equal(empresas.find(o=>o.id===novaOrg).slug,'empresa-d');
 await deny(manager,"select cw_criar_organizacao('Empresa indevida')");
 await deny(manager,'select * from cw_listar_organizacoes()');
 await db.exec(read('supabase/arquitetura-v2.sql'));
