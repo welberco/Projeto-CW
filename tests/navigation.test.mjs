@@ -16,6 +16,7 @@ function query(table){
     async single(){
       if(table==='demandas')return{data:{id:123,titulo:'Teste',tipo_demanda:'corretiva',status:'Registrado',prioridade:'Média',local:'Local',criado_em:new Date().toISOString()},error:null};
       if(table==='ordens_servico')return{data:{id:123,codigo:'OS-123',titulo:'Teste',status:'Aberta',prioridade:'Média',local:'Local'},error:null};
+      if(table==='organizacoes')return{data:{id:'org',nome:'Empresa de teste'},error:null};
       return{data:null,error:null};
     },
     async maybeSingle(){return{data:null,error:null}}
@@ -64,6 +65,17 @@ const menu=w.eval('CWV2_MENU');
 const approve=()=>w.eval("profile={id:'user',papel:'administrador',ativo:true,aprovacao:'aprovado',organizacao_id:'org'};session={user:{id:'user',email:'test@example.test'}}");
 const pending=()=>w.eval("profile={id:'user',papel:'usuario_padrao',ativo:true,aprovacao:'pendente',organizacao_id:'org'};session={user:{id:'user',email:'test@example.test'}}");
 const resetHash=hash=>w.history.replaceState(null,'','/'+hash);
+const activeMenuRoutes=()=>Array.from(w.document.querySelectorAll('#sidebar [data-route].active'),node=>node.dataset.route);
+async function assertFinalRoute(path,view,nav=path){
+  approve();
+  resetHash('#/'+path);
+  const route=router.resolve(path);
+  assert.ok(route);
+  assert.equal(router.activeNav(route),nav);
+  await router.render();
+  assert.ok(w.document.getElementById(view).classList.contains('active'));
+  assert.deepEqual(activeMenuRoutes(),[nav]);
+}
 let passed=0;
 async function test(label,run){await run();passed++;void label}
 
@@ -123,6 +135,25 @@ await test('52. paginação preserva filtros',async()=>{resetHash('#/solicitacoe
 await test('53. parâmetros são interpretados centralmente',async()=>{resetHash('#/solicitacoes?status=Aberta&pagina=2');const state=router.state();assert.deepEqual([state.path,state.query.get('status'),state.query.get('pagina')],['solicitacoes','Aberta','2'])});
 await test('54. voltar e avançar usam o controlador',async()=>{let calls=0;const original=router.render;router.render=()=>{calls++};w.dispatchEvent(new w.PopStateEvent('popstate'));router.render=original;assert.equal(calls,1)});
 await test('55. rota inválida dinâmica segue para dashboard',async()=>{approve();resetHash('#/solicitacoes/abc');await router.render();assert.equal(w.location.hash,'#/dashboard')});
+
+await test('56. dashboard preserva o menu ativo após o renderizador legado',async()=>assertFinalRoute('dashboard','dashboard'));
+await test('57. relatórios preserva o menu ativo após o renderizador legado',async()=>assertFinalRoute('relatorios','relatorios'));
+await test('58. empresa preserva o menu ativo após o renderizador legado',async()=>assertFinalRoute('empresa','organizacao'));
+await test('59. conta preserva o menu ativo após o renderizador legado',async()=>assertFinalRoute('conta','minhaConta'));
+await test('60. solicitações continua com o menu ativo',async()=>assertFinalRoute('solicitacoes','cwSolicitacoes'));
+await test('61. Ordens de Serviço continua com o menu ativo',async()=>assertFinalRoute('ordens-servico','cwOrdens'));
+await test('62. calendário continua com o menu ativo',async()=>assertFinalRoute('calendario','cwCalendario'));
+await test('63. ativos continua com o menu ativo',async()=>assertFinalRoute('ativos','cwAtivos'));
+await test('64. prestadores continua com o menu Fornecedores ativo',async()=>assertFinalRoute('prestadores','cwPrestadores'));
+await test('65. Grupos e Usuários continua com o menu ativo',async()=>assertFinalRoute('usuarios','usuarios'));
+await test('66. cadastros continua com o menu ativo',async()=>assertFinalRoute('cadastros','cwCadastros'));
+await test('67. suporte continua com o menu ativo',async()=>assertFinalRoute('suporte','cwSuporte'));
+await test('68. existe exatamente um item ativo depois de cada navegação',async()=>{for(const [path,view,nav] of [['dashboard','dashboard'],['solicitacoes','cwSolicitacoes'],['ordens-servico','cwOrdens'],['calendario','cwCalendario'],['ativos','cwAtivos'],['prestadores','cwPrestadores'],['usuarios','usuarios'],['relatorios','relatorios'],['cadastros','cwCadastros'],['empresa','organizacao'],['conta','minhaConta'],['suporte','cwSuporte']])await assertFinalRoute(path,view,nav||path)});
+await test('69. navegar entre rota moderna e legada atualiza o menu',async()=>{await assertFinalRoute('solicitacoes','cwSolicitacoes');await assertFinalRoute('dashboard','dashboard');await assertFinalRoute('ativos','cwAtivos');await assertFinalRoute('relatorios','relatorios')});
+await test('70. voltar e avançar mantêm o destaque correto',async()=>{approve();resetHash('#/solicitacoes');w.dispatchEvent(new w.PopStateEvent('popstate'));await wait();assert.equal(w.location.hash,'#/solicitacoes');assert.deepEqual(activeMenuRoutes(),['solicitacoes']);resetHash('#/relatorios');w.dispatchEvent(new w.PopStateEvent('popstate'));await wait();assert.equal(w.location.hash,'#/relatorios');assert.deepEqual(activeMenuRoutes(),['relatorios'])});
+await test('71. executar novamente o renderizador legado não remove o menu ativo',async()=>{for(const [path,legacyName] of [['dashboard','dashboard'],['relatorios','relatorios'],['empresa','organizacao'],['conta','minhaConta']]){await assertFinalRoute(path,routes[path].view);await w.showLegacyView(legacyName);await wait();assert.deepEqual(activeMenuRoutes(),[path])}});
+await test('72. instalação repetida continua sem duplicar listeners',async()=>{const before={hashchange:listenerCounts.hashchange,popstate:listenerCounts.popstate};router.install();router.install();assert.deepEqual({hashchange:listenerCounts.hashchange,popstate:listenerCounts.popstate},before)});
+await test('73. o renderizador da rota é chamado uma única vez',async()=>{approve();resetHash('#/dashboard');let calls=0;const original=routes.dashboard.render;routes.dashboard.render=()=>{calls++;return original()};await router.render();routes.dashboard.render=original;assert.equal(calls,1);assert.deepEqual(activeMenuRoutes(),['dashboard'])});
 
 console.log(`PASS: ${passed} cenários de caracterização e consolidação da navegação.`);
 w.close();

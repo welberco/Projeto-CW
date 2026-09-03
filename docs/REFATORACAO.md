@@ -43,7 +43,9 @@ Antes das alterações, `npm ci` e `npm test` concluíram com sucesso na branch 
 - [x] Testes executados depois das alterações.
 - [ ] Validação manual da Fase 2A antes da integração.
 - [x] Fase 2B: consolidar a navegação sem alterar comportamento.
-- [ ] Validar manualmente e automatizar a cobertura da Fase 2B.
+- [x] Executar a primeira validação manual da Fase 2B e registrar a regressão do menu ativo.
+- [x] Corrigir e automatizar a cobertura da regressão do menu ativo.
+- [ ] Repetir a validação manual da Fase 2B na nova pré-visualização.
 - [ ] Fase 2C: remover somente código comprovadamente obsoleto.
 - [ ] Validar manualmente e executar a suíte completa antes de integrar à `main`.
 
@@ -105,3 +107,13 @@ Os itens abaixo permanecem pendentes porque esta execução automatizada não ac
 - [ ] Troca de empreendimento.
 - [ ] Perfil não aprovado.
 - [ ] Responsividade básica.
+
+## Correção pós-validação da Fase 2B
+
+A validação manual do commit `3df4dd7` identificou uma regressão visual de gravidade média: Dashboard, Relatórios, Empresa e Minha Conta abriam corretamente, mas terminavam sem o item correspondente ativo no menu. `CWRouter.activeNav()` retornava o valor correto e o controlador aplicava `active` por `data-route`; em seguida, os renderizadores legados percorriam todos os elementos `.nav` e recalculavam o destaque por `data-view`. Como o menu instalado pela arquitetura v2 usa `data-route`, essa segunda passagem removia a classe aplicada pelo roteador.
+
+A correção restringe a manipulação legada do menu a `.nav[data-view]`. Assim, o comportamento anterior permanece disponível antes da instalação da arquitetura v2, enquanto o menu atual, composto por elementos `data-route`, continua sob responsabilidade exclusiva do `CWRouter`. Os renderizadores legados permanecem responsáveis por exibir a seção, carregar seu conteúdo, atualizar textos próprios e fechar a barra lateral; eles não alteram mais o menu moderno.
+
+Foram acrescentados testes comportamentais que executam a ordem real `CWRouter.render()` → renderizador da rota → renderizador legado → estado final do DOM. A suíte de navegação passou de 55 para 73 cenários e cobre as quatro rotas corrigidas, as oito rotas de controle, unicidade do item ativo, transição entre tela moderna e legada, eventos de histórico, nova execução do legado, idempotência da instalação e chamada única do renderizador.
+
+A Fase 2C permanece bloqueada até que a nova pré-visualização seja validada manualmente por clique, acesso direto, atualização, Voltar e Avançar.

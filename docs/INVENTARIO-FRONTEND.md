@@ -240,3 +240,24 @@ Riscos e candidatos para a Fase 2C:
 - handlers antigos substituídos durante o carregamento: **PRECISA DE TESTE**.
 
 A migração técnica de `prestadores` para `fornecedores` exige fase própria, incluindo banco, RLS, relacionamentos e compatibilidade de URLs. Ela não deve ser misturada à remoção de código obsoleto.
+
+## Correção pós-validação da Fase 2B
+
+### Interferência identificada
+
+No menu original de `index.html`, os botões usam `data-view`. Depois de `CWRouter.install()`, o menu é reconstruído com `data-route`. O controlador resolvia corretamente as rotas `dashboard`, `relatorios`, `empresa` e `conta`, aplicava `active` ao respectivo `data-route` e chamava o renderizador legado. Depois disso, `showLegacyBase`, `showAccountView`, `openReports` ou `openOrganization` executavam um seletor genérico `.nav` e recalculavam o destaque somente por `data-view`. Essa passagem removia o estado do menu moderno.
+
+### Responsabilidades após a correção
+
+- `CWRouter.activeNav()` continua determinando o identificador ativo.
+- `CWRouter.render()` continua sendo a única fonte oficial que aplica `active` ao menu atual por `data-route`.
+- `showLegacyBase` e `showLegacyView` continuam selecionando seções antigas, atualizando textos necessários, fechando a barra lateral e acionando o conteúdo legado.
+- `showAccountView`, `openReports` e `openOrganization` mantêm suas funções de tela e carregamento.
+- A manipulação legada do menu foi limitada a `.nav[data-view]`, preservando a navegação anterior antes da instalação da v2 sem interferir nos botões `data-route`.
+- Nenhum segundo controlador, listener, mapa de aliases ou reaplicação posterior do menu foi criado.
+
+### Cobertura e riscos remanescentes
+
+Foram adicionados 18 cenários comportamentais, elevando a suíte de navegação de 55 para 73 casos. Eles verificam o estado final real do DOM após os renderizadores legados, todas as rotas do menu, exatamente um item ativo, transições moderna/legada, eventos de Voltar e Avançar, repetição do renderizador legado, instalação idempotente e uma única chamada do renderizador da rota.
+
+O principal risco remanescente é algum fluxo legado externo ainda depender de um elemento `.nav` sem `data-view`; não existe esse elemento no HTML inventariado. A validação manual da nova pré-visualização permanece obrigatória. A Fase 2C não deve começar antes dessa aprovação.
