@@ -24,7 +24,7 @@ Mapear globais, sobrescritas, listeners, eventos inline, dependências entre arq
 
 ### Fase 2B — consolidação da navegação
 
-Consolidar a cadeia de navegação em um controlador oficial, mantendo as rotas, permissões e telas cobertas pelos testes da Fase 2A. A fase foi implementada na branch de refatoração e aguarda a validação manual da pré-visualização.
+Consolidar a cadeia de navegação em um controlador oficial, mantendo as rotas, permissões e telas cobertas pelos testes da Fase 2A. A fase foi concluída, recebeu a correção isolada do menu ativo e foi validada na pré-visualização do commit `e262daf`.
 
 ### Fase 2C — remoção do código obsoleto
 
@@ -45,8 +45,9 @@ Antes das alterações, `npm ci` e `npm test` concluíram com sucesso na branch 
 - [x] Fase 2B: consolidar a navegação sem alterar comportamento.
 - [x] Executar a primeira validação manual da Fase 2B e registrar a regressão do menu ativo.
 - [x] Corrigir e automatizar a cobertura da regressão do menu ativo.
-- [ ] Repetir a validação manual da Fase 2B na nova pré-visualização.
-- [ ] Fase 2C: remover somente código comprovadamente obsoleto.
+- [x] Repetir a validação manual da Fase 2B na nova pré-visualização.
+- [x] Fase 2C: remover somente código comprovadamente obsoleto.
+- [ ] Validar manualmente a Fase 2C na pré-visualização do commit publicado.
 - [ ] Validar manualmente e executar a suíte completa antes de integrar à `main`.
 
 ## Arquitetura modular preparada na Fase 2B
@@ -116,4 +117,18 @@ A correção restringe a manipulação legada do menu a `.nav[data-view]`. Assim
 
 Foram acrescentados testes comportamentais que executam a ordem real `CWRouter.render()` → renderizador da rota → renderizador legado → estado final do DOM. A suíte de navegação passou de 55 para 73 cenários e cobre as quatro rotas corrigidas, as oito rotas de controle, unicidade do item ativo, transição entre tela moderna e legada, eventos de histórico, nova execução do legado, idempotência da instalação e chamada única do renderizador.
 
-A Fase 2C permanece bloqueada até que a nova pré-visualização seja validada manualmente por clique, acesso direto, atualização, Voltar e Avançar.
+A nova pré-visualização foi validada por clique, acesso direto, atualização, Voltar e Avançar. As quatro rotas corrigidas e as rotas de controle mantiveram exatamente um item ativo, sem erro de aplicação no console.
+
+## Execução da Fase 2C
+
+A limpeza foi deliberadamente pequena. A análise confirmou como removíveis duas implementações iniciais de `loadUsers` em `app.js`, o alias sem consumidor `loadUsersBasic`, o helper `saveUserProfile` usado somente por essas implementações e o utilitário sem consumidor `cwBytes` em `arquitetura-v2.js`. A implementação base remanescente de `loadUsers` passou a ser uma declaração explícita, eliminando uma sobrescrita silenciosa dentro de `app.js` sem alterar sua assinatura global.
+
+As buscas abrangeram produção, HTML, testes, strings, eventos inline e documentação. Antes da remoção foram adicionados testes para a implementação final de usuários, a galeria final e os pontos de compatibilidade multiempresa; depois da remoção foram acrescentadas verificações de ausência residual e de declaração única da base de `loadUsers`. A suíte de navegação passou de 73 para 78 cenários.
+
+Foram mantidos por compatibilidade: `show`, `showLegacyBase`, `showLegacyView`, `cwNavigateLegacy`, os adaptadores públicos do `CWRouter`, `viewDemandBase`, `startEditBase`, `renderGallery`, `cwEnterAppBase`, `cwEnterpriseChange`, os eventos inline, as implementações v1 exercitadas sem a arquitetura v2 e toda a nomenclatura técnica `prestadores`. As sobrescritas entre `app.js`, `multiempresa.js` e `arquitetura-v2.js` que ainda selecionam a implementação adequada à camada foram adiadas para uma modularização posterior.
+
+Não houve alteração de regras de negócio, URLs, textos visíveis, autenticação, permissões, consultas, Supabase, RLS, SQL, Storage ou módulos. A rota `#prestadores` e a apresentação **Fornecedores** permanecem inalteradas. Financeiro, Compras, Orçamento e Diário de Obras continuam apenas previstos na documentação.
+
+### Próxima etapa recomendada
+
+Publicar a Fase 2C, aguardar GitHub Actions e Cloudflare Pages e repetir a validação manual conservadora. Uma etapa posterior, separada, poderá planejar a modularização das implementações globais ainda sobrescritas; não deve começar antes da aprovação manual desta limpeza.

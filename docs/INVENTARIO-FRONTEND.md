@@ -260,4 +260,45 @@ No menu original de `index.html`, os botões usam `data-view`. Depois de `CWRout
 
 Foram adicionados 18 cenários comportamentais, elevando a suíte de navegação de 55 para 73 casos. Eles verificam o estado final real do DOM após os renderizadores legados, todas as rotas do menu, exatamente um item ativo, transições moderna/legada, eventos de Voltar e Avançar, repetição do renderizador legado, instalação idempotente e uma única chamada do renderizador da rota.
 
-O principal risco remanescente é algum fluxo legado externo ainda depender de um elemento `.nav` sem `data-view`; não existe esse elemento no HTML inventariado. A validação manual da nova pré-visualização permanece obrigatória. A Fase 2C não deve começar antes dessa aprovação.
+O principal risco remanescente era algum fluxo legado externo ainda depender de um elemento `.nav` sem `data-view`; não existe esse elemento no HTML inventariado. A nova pré-visualização da correção foi validada antes do início da Fase 2C.
+
+## Resultado da Fase 2C
+
+A validação manual da correção da Fase 2B foi concluída no commit `e262daf`. A Fase 2C reavaliou os candidatos no código atual e aplicou somente remoções com ausência de uso comprovada. Documentação foi considerada evidência histórica, não uso funcional.
+
+| Item | Arquivo | Situação anterior | Classificação | Ação | Evidência |
+| --- | --- | --- | --- | --- | --- |
+| Primeira implementação de `loadUsers` | `app.js` | Tabela inicial, substituída duas vezes no próprio arquivo e novamente nos scripts seguintes | REMOVÍVEL COM SEGURANÇA | Removida | Nenhuma chamada podia alcançar essa função após o carregamento síncrono; o único alias era `loadUsersBasic`, também sem consumidor; rota de usuários protegida por testes. |
+| Segunda implementação de `loadUsers` | `app.js` | Substituía a primeira e era substituída antes da inicialização da sessão | REMOVÍVEL COM SEGURANÇA | Removida | Sem captura, callback ou evento que preservasse a referência; a terceira implementação de `app.js` e as camadas seguintes permanecem. |
+| `loadUsersBasic` | `app.js` | Alias da primeira implementação | REMOVÍVEL COM SEGURANÇA | Removido | Busca em produção, HTML e testes encontrou apenas a declaração e a documentação histórica. |
+| `saveUserProfile` | `app.js` | Helper chamado somente pelo HTML gerado pelas duas implementações removidas | REMOVÍVEL COM SEGURANÇA | Removido | Após remover os únicos geradores de `onclick`, não restou chamada direta, indireta, inline ou por string. |
+| Terceira implementação de `loadUsers` | `app.js` | Atribuição global que fornecia a base v1 remanescente | DUPLICAÇÃO CONSOLIDÁVEL | Convertida em declaração explícita `async function loadUsers` | Assinatura e corpo preservados; reduz uma sobrescrita interna e os testes confirmam a implementação final v2. |
+| `cwBytes` | `arquitetura-v2.js` | Utilitário de formatação sem consumidor | REMOVÍVEL COM SEGURANÇA | Removido | Busca global encontrou somente a declaração; nenhum HTML, callback, teste ou acesso dinâmico o referenciava. |
+| `renderGallery` e wrapper intermediário de `loadGallery` | `app.js` | Base e complemento da galeria v1, substituídos na v2 | PRECISA DE NOVO TESTE | Mantidos | A interface `app.js` + `multiempresa.js` ainda pode usar a galeria legada; a cobertura atual valida a implementação final, não todos os recursos da versão intermediária. |
+| `viewDemandBase` e `startEditBase` | `app.js` | Bases capturadas pelos wrappers tipados | COMPATIBILIDADE NECESSÁRIA | Mantidos | São chamados diretamente pelos wrappers finais de detalhes e edição. |
+| `loadProfile`, `loadData` e `enterApp` de `app.js` | `app.js` | Bases substituídas por `multiempresa.js` | PRECISA DE NOVO TESTE | Mantidos | Funcionam como fallback da camada base; removê-los exige caracterizar carregamento parcial e falha de script. |
+| `loadUsers`, `openUserEditor`, `loadPermissionMatrix` e `savePermission` | `multiempresa.js` | Implementações v1 multiempresa substituídas na v2 | COMPATIBILIDADE NECESSÁRIA | Mantidos | `tests/interface.test.mjs` carrega deliberadamente apenas `app.js` + `multiempresa.js` e exercita esse fluxo. |
+| Sobrescritas finais de usuários e permissões | `arquitetura-v2.js` | Implementações funcionais atuais | ADIADO PARA MODULARIZAÇÃO | Mantidas | São as implementações usadas pelo menu e pelos formulários atuais; eliminar atribuições globais requer reorganização entre arquivos. |
+| `cwEnterAppBase` | `arquitetura-v2.js` | Captura a entrada multiempresa antes do complemento de rota | COMPATIBILIDADE NECESSÁRIA | Mantido | Chamado diretamente pela implementação final de `enterApp`; preserva autenticação, aprovação e contexto da empresa. |
+| `cwEnterpriseChange` | `arquitetura-v2.js` | Captura o handler multiempresa antes do complemento de rota | COMPATIBILIDADE NECESSÁRIA | Mantido | O handler final o chama diretamente antes de renderizar a rota atual. |
+| `show`, `showLegacyBase`, `showLegacyView`, `cwNavigateLegacy` | `app.js` / `arquitetura-v2.js` | Ponte explícita entre telas v1 e o roteador oficial | COMPATIBILIDADE NECESSÁRIA | Mantidos | Dashboard, nova solicitação e aliases antigos dependem desse fluxo; testes de navegação e menu o exercitam. |
+| `cwNavigate`, `cwSetRouteFilter`, `cwGoPage`, `cwRenderRoute` | `arquitetura-v2.js` | Adaptadores públicos finos | COMPATIBILIDADE NECESSÁRIA | Mantidos | Eventos inline, filtros, paginação, testes e entrada da sessão os chamam. |
+| `CWRouter`, rotas, escopos, módulo e aliases | `arquitetura-v2.js` | Controlador e metadados oficiais | ADIADO PARA MODULARIZAÇÃO | Mantidos sem alteração | São a fonte única da navegação e a base modular aprovada. |
+| `CATEGORIES` e `RESPONSIBLES` | `app.js` | Constantes inicialmente consideradas residuais | COMPATIBILIDADE NECESSÁRIA | Mantidas | Ambas ainda montam campos do formulário legado antes dos ajustes posteriores. |
+| Cadastro público desativado | `multiempresa.js` / `arquitetura-v2.js` | Fluxo v1 desativado pela v2 | COMPATIBILIDADE NECESSÁRIA | Mantido | O teste de interface v1 caracteriza o fluxo; a v2 o oculta e remove o campo sem mudar autenticação nesta fase. |
+| `loadAttachments` e modal `openMedia` | `app.js` | Galeria/anexos legados | PRECISA DE NOVO TESTE | Mantidos | Upload e edição legados ainda possuem chamadas; remoção exige cobertura específica de anexos e exclusão. |
+| Propriedade normalizada `serviceType` | `app.js` / `multiempresa.js` | Campo mapeado sem consumidor estático confirmado | NÃO DETERMINADO | Mantida | Pode ser consumida dinamicamente por fluxo legado; não há prova suficiente para remoção. |
+| Nomes técnicos e rota `prestadores` | `arquitetura-v2.js` e Supabase | Compatibilidade técnica enquanto a interface mostra Fornecedores | COMPATIBILIDADE NECESSÁRIA | Mantidos | Consultas, permissões, relações e URL pública dependem do nome atual. |
+| Eventos inline e handlers v1 substituídos | todos os scripts | Pontos de extensão globais e fallback por ordem de carregamento | ADIADO PARA MODULARIZAÇÃO | Mantidos | A eliminação segura exige delegação de eventos e separação modular, fora do limite desta fase. |
+
+### Situação final
+
+- **Removido:** duas versões inacessíveis de `loadUsers`, `loadUsersBasic`, `saveUserProfile` e `cwBytes`.
+- **Consolidado:** uma única implementação base de `loadUsers` permanece em `app.js` como declaração explícita.
+- **Mantido por compatibilidade:** renderizadores legados, aliases, adaptadores, handlers multiempresa, eventos inline e nomes técnicos `prestadores`.
+- **Adiado para modularização:** eliminação das sobrescritas globais entre camadas e delegação dos eventos inline.
+- **Não determinado:** uso dinâmico futuro de `serviceType`; nenhuma remoção foi feita.
+
+Os testes acrescentados verificam a implementação final de usuários, a implementação final da galeria, os pontos de compatibilidade multiempresa, a ausência dos símbolos removidos e a declaração única de `loadUsers` em `app.js`. A suíte de navegação passou de 73 para 78 cenários. As telas legadas de Dashboard, nova Solicitação, Relatórios, Empresa, Minha Conta e a base v1 de usuários permanecem necessárias.
+
+A rota `#prestadores`, os identificadores técnicos e as relações atuais foram preservados; a interface continua exibindo **Fornecedores**. Nenhum módulo futuro foi implementado.

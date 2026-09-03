@@ -6,7 +6,9 @@ const read=path=>readFileSync(new URL('../'+path,import.meta.url),'utf8');
 const wait=()=>new Promise(resolve=>setTimeout(resolve,0));
 const empty=()=>({data:[],error:null,count:0});
 const appSource=read('app.js');
+const multiSource=read('multiempresa.js');
 const routerSource=read('arquitetura-v2.js');
+const productionSource=[appSource,multiSource,routerSource,read('index.html')].join('\n');
 
 function query(table){
   const chain={
@@ -154,6 +156,11 @@ await test('70. voltar e avançar mantêm o destaque correto',async()=>{approve(
 await test('71. executar novamente o renderizador legado não remove o menu ativo',async()=>{for(const [path,legacyName] of [['dashboard','dashboard'],['relatorios','relatorios'],['empresa','organizacao'],['conta','minhaConta']]){await assertFinalRoute(path,routes[path].view);await w.showLegacyView(legacyName);await wait();assert.deepEqual(activeMenuRoutes(),[path])}});
 await test('72. instalação repetida continua sem duplicar listeners',async()=>{const before={hashchange:listenerCounts.hashchange,popstate:listenerCounts.popstate};router.install();router.install();assert.deepEqual({hashchange:listenerCounts.hashchange,popstate:listenerCounts.popstate},before)});
 await test('73. o renderizador da rota é chamado uma única vez',async()=>{approve();resetHash('#/dashboard');let calls=0;const original=routes.dashboard.render;routes.dashboard.render=()=>{calls++;return original()};await router.render();routes.dashboard.render=original;assert.equal(calls,1);assert.deepEqual(activeMenuRoutes(),['dashboard'])});
+await test('74. implementação final de usuários permanece ativa',async()=>{approve();await w.loadUsers();assert.ok(w.document.getElementById('cwManagedCreate'));assert.ok(w.document.querySelector('#cwManagedCreate select[name="operacao_id"]'))});
+await test('75. implementação final da galeria permanece ativa',async()=>{approve();await w.loadGallery(123,'attachmentsList');assert.match(w.document.getElementById('attachmentsList').textContent,/Nenhum arquivo/)});
+await test('76. pontos de compatibilidade multiempresa permanecem disponíveis',async()=>{for(const name of ['loadProfile','loadData','enterApp'])assert.equal(typeof w[name],'function');assert.match(multiSource,/loadProfile\s*=\s*async function/);assert.match(routerSource,/const cwEnterAppBase=enterApp/)});
+await test('77. aliases e auxiliares removidos não permanecem referenciados',async()=>{for(const name of ['loadUsersBasic','saveUserProfile','cwBytes'])assert.doesNotMatch(productionSource,new RegExp(`\\b${name}\\b`))});
+await test('78. app mantém somente uma implementação base de loadUsers',async()=>{assert.equal((appSource.match(/(?:async\s+)?function\s+loadUsers\s*\(/g)||[]).length,1);assert.doesNotMatch(appSource,/^loadUsers\s*=/m)});
 
 console.log(`PASS: ${passed} cenários de caracterização e consolidação da navegação.`);
 w.close();
