@@ -1,0 +1,60 @@
+import { StrictMode } from 'react'
+import { createRoot, type Root } from 'react-dom/client'
+import { RouterProvider } from 'react-router-dom'
+import { parsePublicConfig } from '@/app/config/public-config'
+import { BootstrapErrorPage } from '@/app/pages/bootstrap-error-page'
+import { AppProviders } from '@/app/providers/app-providers'
+import { createAppQueryClient } from '@/app/query/create-query-client'
+import { createAppRouter } from '@/app/router/app-router'
+import { normalizeAppError } from '@/shared/errors/app-error'
+import { createClientCorrelationId } from '@/shared/observability/correlation'
+import {
+  createReleaseIdentity,
+  createUnconfiguredLocalReleaseIdentity,
+} from '@/shared/observability/release'
+import { logSafeError } from '@/shared/observability/safe-logger'
+
+export function bootstrapApplication(
+  root: Root,
+  environment: Readonly<Record<string, unknown>>,
+): void {
+  const clientCorrelationId = createClientCorrelationId()
+
+  try {
+    const config = parsePublicConfig(environment)
+    const release = createReleaseIdentity(config)
+    const queryClient = createAppQueryClient()
+    const router = createAppRouter()
+
+    root.render(
+      <StrictMode>
+        <AppProviders
+          clientCorrelationId={clientCorrelationId}
+          queryClient={queryClient}
+          release={release}
+        >
+          <RouterProvider router={router} />
+        </AppProviders>
+      </StrictMode>,
+    )
+  } catch (cause) {
+    const release = createUnconfiguredLocalReleaseIdentity()
+    const error = normalizeAppError(cause, clientCorrelationId)
+    logSafeError(error, release)
+    root.render(
+      <StrictMode>
+        <BootstrapErrorPage error={error} release={release} />
+      </StrictMode>,
+    )
+  }
+}
+
+export function findRootElement(): Root {
+  const element = document.getElementById('root')
+
+  if (element === null) {
+    throw new Error('Application root element is missing.')
+  }
+
+  return createRoot(element)
+}

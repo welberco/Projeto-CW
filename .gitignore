@@ -17,6 +17,8 @@ public_html/hot
 
 storage/*.key
 .env
+.env.*
+!.env.example
 Homestead.yaml
 Homestead.json
 /.vagrant
@@ -30,3 +32,7 @@ Homestead.json
 auth.json
 
 supabase/.temp/
+
+# CW ERP V2 local outputs
+/dist-v2/
+/coverage/
