@@ -94,3 +94,142 @@ coluna. A W0A não altera esse SQL nem enfraquece o teste.
 A V1 também mantém URL e anon key públicas hardcoded no seu script histórico.
 Esses valores não são importados nem incluídos no bundle V2; sua remoção ou
 rotação está fora do escopo desta foundation.
+
+## W0B — Harness de testes e banco local
+
+A W0B adiciona a infraestrutura versionada para executar Vitest/RTL,
+Playwright e Supabase/PostgreSQL local sem acessar um projeto remoto. Ela não
+adiciona tabelas, Auth, tenant, membership, permissions, RLS, Storage ou domínio.
+
+### Pré-requisitos e versões
+
+- Node.js compatível com `package.json` e npm;
+- Docker Engine ou runtime compatível, com o daemon acessível pelo comando
+  `docker`, para o Supabase local;
+- dependências instaladas por `npm ci`;
+- Chromium do Playwright instalado uma vez por
+  `npx playwright install chromium`.
+
+Versões fixadas nesta etapa:
+
+| Ferramenta | Versão |
+| --- | --- |
+| Supabase CLI | 2.117.0 |
+| Playwright | 1.63.0 |
+
+O CLI fica nas dependências de projeto e é chamado pelos scripts npm; instalação
+global não é necessária. O wrapper `scripts/supabase-local.mjs` desativa a
+telemetria do CLI e aceita somente comandos locais allowlisted.
+
+### Supabase local e migrations
+
+Os SQLs incrementais da V1 continuam diretamente em `supabase/` como evidência
+legada. Eles não foram apagados, alterados, reordenados ou promovidos para a
+cadeia V2. `supabase/.temp/` também continua preservado e ignorado pelo Git.
+
+A V2 usa somente:
+
+- `supabase/config.toml`, com projeto `cw-erp-v2-local` e portas locais;
+- API e PostgreSQL local habilitados;
+- Auth, Storage, Realtime, Studio, Edge Runtime e Analytics desabilitados nesta
+  wave;
+- `supabase/migrations/20260909000000_v2_foundation_baseline.sql`, uma migration
+  intencionalmente sem DDL para provar o runner sem inventar schema de domínio;
+- seed desabilitado, pois a W0B não possui fixtures de domínio.
+
+Todos os comandos destrutivos ou de introspecção incluem `--local` no wrapper.
+O wrapper não aceita argumentos extras, não usa `--linked`, `--project-ref` ou
+URL de banco, e testa a disponibilidade do Docker antes de executar. Portanto,
+o target de `db:reset`, `db:types` e `test:v2:db` é exclusivamente o ambiente
+descartável descrito por `supabase/config.toml`.
+
+Sequência from-zero:
+
+```text
+npm ci
+npx playwright install chromium
+npm run db:start
+npm run db:reset
+npm run db:types
+npm run test:v2:all
+npm run build
+```
+
+`npm run db:reset` executa `supabase db reset --local --no-seed`. Ele só deve
+ser chamado para este ambiente local descartável depois de `npm run db:start`.
+Nunca se deve adicionar `--linked` ou substituir o wrapper por uma connection
+string remota.
+
+`npm run db:types` executa o gerador oficial com
+`supabase gen types typescript --local --schema public` e só então substitui
+`src/infrastructure/supabase/database.types.ts`. Esse arquivo é gerado e não
+deve receber edição manual; adaptações futuras pertencem a wrappers separados.
+
+O smoke `npm run test:v2:db` verifica, no banco local:
+
+1. conexão e lint do schema `public`;
+2. presença da migration `20260909000000` no histórico aplicado;
+3. ausência de qualquer tabela em `public` na baseline W0B.
+
+W1 e W2 ampliarão esse mesmo harness com fixtures reproduzíveis, Tenant A,
+Tenant B, constraints, RLS, commands e concorrência. Nada disso é simulado na
+W0B.
+
+Migrations ainda exercitadas somente em LOCAL/TEST descartável podem ser
+ajustadas antes da publicação. Depois de promovidas para qualquer ambiente
+compartilhado persistente, tornam-se imutáveis e correções exigem nova migration.
+
+### Gates de teste
+
+| Script | Responsabilidade |
+| --- | --- |
+| `npm run test:v2:unit` | Vitest + React Testing Library da V2 |
+| `npm run test:v2` | alias compatível para o gate unitário V2 |
+| `npm run test:v2:e2e` | Playwright/Chromium contra a entrada Vite da V2 |
+| `npm run test:v2:db` | smoke PostgreSQL/Supabase exclusivamente local |
+| `npm run test:v2:all` | unitário, DB local e E2E, nesta ordem |
+| `npm run test:legacy` | suíte original da V1, sem skips ou expectativas alteradas |
+| `npm test` | unitários V2 seguidos da suíte legada V1 |
+
+O Vitest usa `jsdom`, setup comum com jest-dom e cleanup, e um helper pequeno
+`renderWithProviders` para QueryClient e identidade técnica de teste. Ele não
+cria arquitetura fake de Auth ou tenant.
+
+O Playwright usa porta/baseURL exclusivos (`127.0.0.1:4173`) e inicia/encerra o
+Vite programaticamente no lifecycle global do runner. Essa alternativa mantém
+o servidor automático e evita o encerramento retido por `taskkill /T` observado
+no `webServer` do Playwright neste Windows. Os testes cobrem `/`, rota tenant
+opaca, rota de plataforma, deep link inexistente, refresh e back/forward.
+
+### Evidência desta execução
+
+Em 2026-09-10, Node.js 24.19.0 e npm 11.17.0 executaram:
+
+- typecheck: PASS;
+- lint: PASS;
+- Vitest/RTL: PASS, 3 arquivos e 9 testes;
+- Playwright/Chromium: PASS, 4 testes;
+- build: PASS;
+- Supabase local start: PASS;
+- Supabase local reset: PASS;
+- geração oficial de `database.types.ts`: PASS;
+- DB smoke: PASS, com a migration `20260909000000` aplicada e o schema
+  `public` sem tabelas;
+- `git diff --check`: PASS, sem erros de whitespace.
+
+`database.types.ts` foi regenerado pelo Supabase CLI a partir do banco local,
+sem edição manual. O wrapper normaliza somente o EOF do conteúdo gerado para
+uma única quebra de linha final antes de gravar o arquivo.
+
+A suíte V1 continua separada e não foi silenciada. O encadeamento legado
+reproduz `column o.slug does not exist` em `cw_listar_organizacoes()` porque não
+aplica previamente o SQL que cria a coluna. Execuções isoladas confirmaram ainda
+que `interface.test.mjs` e `interface-v2.test.mjs` passam, enquanto
+`admin-users.test.mjs` possui outra falha preexistente (`400 !== 200`) no mock da
+cadeia `delete().eq(...)`. Os arquivos envolvidos são idênticos ao HEAD inicial
+`8b5fc59`; não são regressões da W0B.
+
+Nenhum Supabase remoto, PostgreSQL remoto, Auth remoto, Storage remoto, GitHub
+API, produção, push ou deploy foi acessado. Com todos os gates da W0B aprovados,
+esta etapa declara `W0B_COMPLETE`. A W0C permanece obrigatória antes de
+`FOUNDATION_READY`, que continua `PENDING`.

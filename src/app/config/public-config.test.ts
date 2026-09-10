@@ -1,18 +1,19 @@
 import { describe, expect, it } from 'vitest'
 import { AppError, toSafeErrorDetails } from '@/shared/errors/app-error'
 import { parsePublicConfig } from '@/app/config/public-config'
+import { publicTestEnvironment } from '@/test/public-test-environment'
 
 const validLocalConfig = {
-  VITE_SUPABASE_URL: 'http://127.0.0.1:54321',
-  VITE_SUPABASE_ANON_KEY: 'public-anon-placeholder-value',
+  ...publicTestEnvironment,
   VITE_APP_ENV: 'local',
+  VITE_RELEASE_ID: undefined,
 }
 
 describe('parsePublicConfig', () => {
   it('validates public config and applies an explicit local release fallback', () => {
     expect(parsePublicConfig(validLocalConfig)).toEqual({
-      supabaseUrl: 'http://127.0.0.1:54321',
-      supabaseAnonKey: 'public-anon-placeholder-value',
+      supabaseUrl: 'http://127.0.0.1:54331',
+      supabaseAnonKey: 'public-local-test-placeholder',
       appEnvironment: 'local',
       releaseId: 'local-dev',
     })

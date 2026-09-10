@@ -36,3 +36,6 @@ supabase/.temp/
 # CW ERP V2 local outputs
 /dist-v2/
 /coverage/
+/playwright-report/
+/test-results/
+/blob-report/

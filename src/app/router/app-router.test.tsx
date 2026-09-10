@@ -1,28 +1,13 @@
-import { QueryClient } from '@tanstack/react-query'
-import { render, screen } from '@testing-library/react'
+import { screen } from '@testing-library/react'
 import { RouterProvider } from 'react-router-dom'
 import { describe, expect, it } from 'vitest'
-import { AppProviders } from '@/app/providers/app-providers'
 import { createAppMemoryRouter } from '@/app/router/app-router'
-import type { ClientCorrelationId } from '@/shared/observability/correlation'
-
-const testCorrelationId = 'correlation-test' as ClientCorrelationId
+import { renderWithProviders } from '@/test/render-with-providers'
 
 function renderRoute(path: string) {
-  const queryClient = new QueryClient({
-    defaultOptions: { queries: { retry: false } },
-  })
   const router = createAppMemoryRouter([path])
 
-  render(
-    <AppProviders
-      clientCorrelationId={testCorrelationId}
-      queryClient={queryClient}
-      release={{ environment: 'test', releaseId: 'test-suite' }}
-    >
-      <RouterProvider router={router} />
-    </AppProviders>,
-  )
+  renderWithProviders(<RouterProvider router={router} />)
 }
 
 describe('app router', () => {

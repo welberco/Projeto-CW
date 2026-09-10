@@ -6,7 +6,14 @@ import globals from 'globals'
 import tseslint from 'typescript-eslint'
 
 export default defineConfig([
-  globalIgnores(['dist-v2', 'coverage', 'node_modules']),
+  globalIgnores([
+    'dist-v2',
+    'coverage',
+    'node_modules',
+    'playwright-report',
+    'test-results',
+    'src/infrastructure/supabase/database.types.ts',
+  ]),
   js.configs.recommended,
   ...tseslint.configs.recommendedTypeChecked,
   {
@@ -21,13 +28,25 @@ export default defineConfig([
     },
   },
   {
-    files: ['vite.config.ts', 'vitest.config.ts'],
+    files: [
+      'vite.config.ts',
+      'vitest.config.ts',
+      'playwright.config.ts',
+      'tests/e2e/**/*.ts',
+    ],
     languageOptions: {
       globals: globals.node,
       parserOptions: {
         projectService: true,
         tsconfigRootDir: import.meta.dirname,
       },
+    },
+  },
+  {
+    files: ['scripts/**/*.mjs'],
+    extends: [tseslint.configs.disableTypeChecked],
+    languageOptions: {
+      globals: globals.node,
     },
   },
   {

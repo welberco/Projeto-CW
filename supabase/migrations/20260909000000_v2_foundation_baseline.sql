@@ -1,0 +1,8 @@
+-- CW ERP V2 / W0B foundation baseline.
+--
+-- This migration is intentionally free of DDL. It proves that the official
+-- Supabase migration runner can version and rebuild the disposable local
+-- database before W1 introduces the first real V2 model.
+--
+-- The incremental SQL files kept directly under supabase/ belong to the V1
+-- evidence set and are deliberately not imported into this migration chain.
