@@ -11,6 +11,7 @@ FOUNDATION_READY = YES
 W1_PLANNING_COMPLETE = YES
 W1A_IMPLEMENTATION_AUTHORED = YES
 W1A_DATA_MODEL_READY = YES
+W1B_AUTH_BOOTSTRAP_INVITATIONS_READY = NO
 AUTH_READY = NO
 TENANT_READY = NO
 IDENTITY_TENANT_READY = NO
@@ -172,5 +173,123 @@ blocked/revoked, tenant suspended/inactive, Audit append-only, helpers, grants
 mínimos e RLS deny-by-default. A revisão de segurança não identificou secrets,
 URLs remotas, credenciais, service role no frontend ou antecipação de W1B.
 
-`W1A_DATA_MODEL_READY = YES`. Isto não autoriza W1B nem promove
+`W1A_DATA_MODEL_READY = YES`. O fechamento isolado da W1A não promove
 `AUTH_READY`, `TENANT_READY` ou `IDENTITY_TENANT_READY`, que permanecem `NO`.
+
+## W1B — Auth, bootstrap e convites controlados
+
+### Objetivo e decisões
+
+A W1B adiciona autenticação por Supabase Auth, bootstrap inicial one-shot,
+commands controlados para invitations e aceite pelo destinatário autenticado.
+Não cria signup público, role temporária, Global Admin, CompanySwitcher,
+permissões W2 nem contexto tenant completo da W1C.
+
+Supabase Auth permanece autoridade para credencial, sessão, e-mail confirmado e
+`auth.uid()`. `app_users` permanece a identidade/lifecycle da aplicação. A
+projeção frontend falha fechada para profile ausente, principal blocked/inactive,
+membership ausente/blocked/revoked, tenant indisponível e entitlement desabilitado.
+
+### Bootstrap
+
+`private.platform_bootstrap_state` é o marcador autoritativo mínimo. O command
+`public.bootstrap_initial_tenant`:
+
+- é `SECURITY DEFINER`, transacional e serializado por advisory transaction lock;
+- exige Auth/Application User ativo e plataforma ainda vazia;
+- cria tenant inicialmente não operacional, membership, entitlement
+  `maintenance = enabled`, Audit e marcador de conclusão;
+- torna o tenant `active` somente depois do conjunto consistente;
+- retorna `SYSTEM_ALREADY_INITIALIZED` em repetição;
+- possui `EXECUTE` somente para `service_role`, nunca para browser/cliente.
+
+O runner `scripts/w1b-local-bootstrap.mjs` aceita somente URL loopback, recebe
+e-mail, senha, nome do tenant e credencial técnica por ambiente do processo,
+não imprime segredo e não persiste senha. Se a criação Auth funcionar e o
+command DB falhar, a identidade permanece sem contexto para retry/reparo
+controlado, conforme o plano W1.
+
+### Invitations e modelo de token
+
+E-mail é normalizado somente por `trim + lowercase` e persistido como SHA-256.
+O command de criação gera token aleatório de 256 bits, persiste somente seu
+SHA-256 e retorna o token bruto uma única vez ao serviço chamador. Audit nunca
+recebe token, senha, JWT ou e-mail completo.
+
+Criação, revogação e expiração são commands `service_role` sem grants para
+`anon`/`authenticated`; a autorização interativa de quem pode convidar fica para
+W2. O aceite é o único command concedido a `authenticated`: recebe somente token
+e correlação, deriva usuário/e-mail confirmado de `auth.uid()`/`auth.users`,
+adquire locks, relê invitation/tenant/membership, impede reuso, identidade
+incorreta, expiração, revogação, tenant suspended/inactive e membership
+active/blocked conflitante, e grava membership + invitation accepted + Audit na
+mesma transação. Membership revoked permanece histórica e permite reentrada.
+
+O link usa `/convite#token=...`, mantendo o token fora da requisição HTTP e de
+referrers. A aplicação não copia sessão, token, tenant ou autorização para
+storage próprio; usa a persistência oficial da SDK.
+
+### Commands, grants e RLS
+
+| Command | Grant |
+| --- | --- |
+| `bootstrap_initial_tenant` | `service_role` |
+| `create_tenant_invitation` | `service_role` |
+| `revoke_tenant_invitation` | `service_role` |
+| `expire_tenant_invitation` | `service_role` |
+| `accept_tenant_invitation` | `authenticated` |
+
+Todos revogam `PUBLIC EXECUTE`, usam `search_path` vazio, nomes qualificados e
+contratos estreitos. Nenhuma policy RLS W1A foi ampliada e nenhuma escrita
+direta de cliente foi concedida.
+
+### Frontend, rotas e testes
+
+- `AuthGateway` delimita sessão, login, logout, projeção e aceite;
+- `/login` oferece login seguro sem cadastro público;
+- `/convite` exige sessão e token válido no fragmento;
+- estados de loading, erro seguro, blocked/inactive/no-access e sessão válida
+  são explícitos;
+- testes unitários cobrem normalização, projeção fail-closed, erros seguros,
+  ausência de signup e token no fragmento;
+- pgTAP W1B cobre bootstrap, grants, tokens/hashes, identity binding, reuso,
+  revoke/expire, conflicts de membership, tenant lifecycle e Audit;
+- E2E local cobre renderização de login/sem sessão e invitation inválida segura.
+
+### Validação e limitações nesta sessão
+
+| Validação | Resultado |
+| --- | --- |
+| migrations em PostgreSQL embarcado auxiliar | `PASS` sintático/estrutural; não substitui Supabase/RLS real |
+| `npm run test:v2:unit` | `PASS`: 8 arquivos, 35 testes |
+| `npm run typecheck` | `PASS` |
+| `npm run lint` | `PASS` |
+| `node --check scripts/w1b-local-bootstrap.mjs` | `PASS` |
+| `npm run build` | `PASS`: 239 módulos transformados; aviso não bloqueante de chunk acima de 500 kB |
+| E2E Chromium | `PASS`: 6/6 testes locais controlados |
+| Docker/Supabase local | `BLOCKED`: executável Docker indisponível nesta sessão Codex |
+| `npm run db:reset` | `BLOCKED` por Docker indisponível |
+| `npm run db:types` | `BLOCKED` por Docker indisponível; arquivo gerado não foi editado |
+| `npm run test:v2:db` / pgTAP real | `BLOCKED` por Docker indisponível |
+| `npm run test:v2:all` | `BLOCKED`: inclui o gate DB indisponível; unit e E2E foram executados separadamente |
+
+A busca adversarial confirmou que as ocorrências de `service_role` estão
+restritas à rejeição de configuração pública, ao runner local e aos grants ops;
+não há chave concreta, senha hardcoded, `is_admin`, bypass, token bruto
+persistido/logado ou tenant/user de payload no command de aceite.
+
+Até a validação manual real, o adapter RPC usa um cast estreito e documentado;
+`database.types.ts` deve ser regenerado pelo CLI e o cast removido depois que a
+migration W1B estiver aplicada. W1C (resolver/context/cache), W1D, W1E e W2 não
+foram iniciadas.
+
+```text
+W1A_DATA_MODEL_READY = YES
+W1B_AUTH_BOOTSTRAP_INVITATIONS_READY = NO
+AUTH_READY = NO
+TENANT_READY = NO
+IDENTITY_TENANT_READY = NO
+```
+
+O gate W1B permanece `NO` até `db:reset`, `db:types`, pgTAP/DB e a suíte completa
+passarem no Supabase local real, seguidos de revisão dos tipos gerados.
