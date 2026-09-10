@@ -70,4 +70,24 @@ export default defineConfig([
       ],
     },
   },
+  {
+    files: [
+      'src/infrastructure/**/*.{ts,tsx}',
+      'src/shared/**/*.{ts,tsx}',
+    ],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: ['@/app', '@/app/*', '@/app/**'],
+              message:
+                'Shared and infrastructure layers must not depend on the app layer.',
+            },
+          ],
+        },
+      ],
+    },
+  },
 ])

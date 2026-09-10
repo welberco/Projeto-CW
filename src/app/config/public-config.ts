@@ -8,6 +8,36 @@ const appEnvironmentSchema = z.enum([
   'production',
 ])
 
+function decodesToPrivilegedSupabaseRole(value: string): boolean {
+  if (/^sb_secret_/iu.test(value) || value.toLowerCase().includes('service_role')) {
+    return true
+  }
+
+  const payload = value.split('.')[1]
+
+  if (payload === undefined || typeof globalThis.atob !== 'function') {
+    return false
+  }
+
+  try {
+    const normalizedPayload = payload.replaceAll('-', '+').replaceAll('_', '/')
+    const paddedPayload = normalizedPayload.padEnd(
+      Math.ceil(normalizedPayload.length / 4) * 4,
+      '=',
+    )
+    const claims: unknown = JSON.parse(globalThis.atob(paddedPayload))
+
+    return (
+      typeof claims === 'object' &&
+      claims !== null &&
+      'role' in claims &&
+      claims.role === 'service_role'
+    )
+  } catch {
+    return false
+  }
+}
+
 const publicConfigSchema = z.object({
   VITE_SUPABASE_URL: z
     .string()
@@ -16,7 +46,14 @@ const publicConfigSchema = z.object({
     .refine((value) => value.startsWith('https://') || value.startsWith('http://'), {
       message: 'must use HTTP or HTTPS',
     }),
-  VITE_SUPABASE_ANON_KEY: z.string().trim().min(20).max(4096),
+  VITE_SUPABASE_ANON_KEY: z
+    .string()
+    .trim()
+    .min(20)
+    .max(4096)
+    .refine((value) => !decodesToPrivilegedSupabaseRole(value), {
+      message: 'must be a public browser key',
+    }),
   VITE_APP_ENV: appEnvironmentSchema.default('local'),
   VITE_RELEASE_ID: z.string().trim().min(1).max(128).optional(),
 })

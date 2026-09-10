@@ -36,6 +36,37 @@ describe('parsePublicConfig', () => {
     }
   })
 
+  it('fails safely when required public configuration is absent', () => {
+    expect(() => parsePublicConfig({})).toThrowError(AppError)
+
+    try {
+      parsePublicConfig({})
+    } catch (error) {
+      const safeError = toSafeErrorDetails(error as AppError)
+      expect(safeError).toEqual({
+        code: 'APP_CONFIG_INVALID',
+        category: 'internal',
+        message: 'A configuração pública da aplicação está ausente ou inválida.',
+      })
+    }
+  })
+
+  it.each([
+    'sb_secret_local-test-placeholder',
+    [
+      'header',
+      globalThis.btoa(JSON.stringify({ role: 'service_role' })),
+      'signature',
+    ].join('.'),
+  ])('rejects privileged Supabase key formats from browser config', (key) => {
+    expect(() =>
+      parsePublicConfig({
+        ...validLocalConfig,
+        VITE_SUPABASE_ANON_KEY: key,
+      }),
+    ).toThrowError(AppError)
+  })
+
   it('requires a release identity in staging and production', () => {
     expect(() =>
       parsePublicConfig({

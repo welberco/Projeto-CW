@@ -233,3 +233,133 @@ Nenhum Supabase remoto, PostgreSQL remoto, Auth remoto, Storage remoto, GitHub
 API, produção, push ou deploy foi acessado. Com todos os gates da W0B aprovados,
 esta etapa declara `W0B_COMPLETE`. A W0C permanece obrigatória antes de
 `FOUNDATION_READY`, que continua `PENDING`.
+
+## W0C — Hardening e fechamento da foundation
+
+A W0C confrontou a implementação das W0A/W0B com `PRODUCT_SPEC.md`,
+`AGENTS.md`, a arquitetura técnica congelada e a definição de W0 do plano 10E.
+O escopo permaneceu estritamente técnico: nenhum modelo, tabela, migration,
+autorização ou fluxo de domínio foi antecipado.
+
+### Gaps encontrados e correções
+
+1. A boundary Supabase e a identidade de release importavam tipos definidos em
+   `src/app`, invertendo a direção de dependência. Os contratos mínimos agora
+   pertencem às próprias camadas inferiores, e o ESLint impede regressão.
+2. A configuração pública aceitava qualquer string longa como anon key. Ela
+   agora rejeita os formatos privilegiados conhecidos `sb_secret_` e JWT cujo
+   claim `role` seja `service_role`, sem registrar ou reproduzir o valor.
+3. O harness criava um segundo `QueryClient` diretamente. Ele agora reutiliza
+   o factory central e altera apenas as opções necessárias ao teste.
+4. O estado fundamental “sem permissão” ainda não possuía representação
+   testável. Foi adicionado um estado seguro, sem rota ou autorização simulada;
+   sua integração com sessão/capabilities permanece para W1/W2.
+
+### Checklist objetivo W0C
+
+Estados usados: `PASS`, `FAIL`, `DEFERRED_BY_DESIGN` e `NOT_APPLICABLE`.
+
+| Área | Critério | Estado e evidência |
+| --- | --- | --- |
+| A — Boundaries | Pages não acessam Supabase diretamente | `PASS` — regra estática bloqueante e busca adversarial sem ocorrências. |
+| A — Boundaries | Acesso de infraestrutura passa por boundary tipada | `PASS` — `createAppSupabaseClient` recebe contrato mínimo e retorna `SupabaseClient<Database>`. |
+| A — Boundaries | `tenantRef` não é autoridade | `PASS` — usado apenas como parâmetro opaco e sem acesso a dados. |
+| A — Boundaries | Boundary de plataforma permanece separada | `PASS` — namespace `/plataforma/*` não concede capacidade nem bypass. |
+| A — Boundaries | Nenhum atalho conflita com W1/W2 | `PASS` — não há Auth, tenant, Perfil, capability ou autorização fake. |
+| B — Runtime/config | Config pública é validada | `PASS` — schema Zod fechado aos quatro campos públicos consumidos. |
+| B — Runtime/config | Secrets client-side são recusados | `PASS` — chave privilegiada conhecida é rejeitada e nenhum valor é logado. |
+| B — Runtime/config | Ambientes são explícitos | `PASS` — `local`, `test`, `staging` e `production` formam o contrato permitido. |
+| B — Runtime/config | Release identity é consistente | `PASS` — release explícita em staging/production e fallback somente local/test. |
+| B — Runtime/config | Correlation ID não representa autoridade | `PASS` — identidade é client-side, tipada como sugestão e descrita como não autoritativa. |
+| B — Runtime/config | Config ausente/inválida falha com segurança | `PASS` — bootstrap normaliza o erro sem ecoar credencial ou detalhe do provider. |
+| C — Routing | Deep links, refresh e history | `PASS` — Playwright cobre deep link, refresh, back e forward. |
+| C — Routing | Not-found e fallback seguros | `PASS` — rotas desconhecidas globais e aninhadas terminam em estado sem detalhe interno. |
+| C — Routing | Rotas de plataforma | `PASS` — namespace próprio e sem função administrativa implementada. |
+| C — Routing | Rota tenant é opaca | `PASS` — `/e/:tenantRef/*` não infere tenant, membership ou autorização. |
+| C — Routing | URL não concede autorização | `PASS` — nenhum loader/query/capability deriva autoridade da rota nesta wave. |
+| D — Query/cache | QueryClient é central | `PASS` — aplicação e harness usam `createAppQueryClient`. |
+| D — Query/cache | Cache não é persistido indiscriminadamente | `PASS` — somente memória; ausência de localStorage/sessionStorage/persister. |
+| D — Query/cache | Chaves tenant-owned atuais são corretas | `NOT_APPLICABLE` — W0 não possui query ou dado tenant-owned. |
+| D — Query/cache | Chave futura inclui principal/contexto + tenant + query + filtros/projeção | `DEFERRED_BY_DESIGN` — invariante obrigatório para a primeira query em W1/W2. |
+| E — Error handling | Mensagem ao usuário é segura | `PASS` — projeção contém apenas code, category, mensagem segura e correlation ID. |
+| E — Error handling | Stack, secret e config não vazam | `PASS` — causa e technical details não entram na projeção/log seguro. |
+| E — Error handling | Erro inesperado é normalizado | `PASS` — código estável `APP_UNEXPECTED` e mensagem não enumerativa. |
+| F — Generated code | `database.types.ts` é regenerável | `PASS` — gerado pelo CLI a partir do banco local. |
+| F — Generated code | Lint isola apenas o generated code necessário | `PASS` — exclusão exata do arquivo gerado. |
+| F — Generated code | Wrapper é determinístico | `PASS` — CLI versionado, argumentos allowlisted e target local fixo. |
+| F — Generated code | Não há edição manual dos tipos | `PASS` — geração oficial seguida apenas de normalização de EOF. |
+| G — Database local | Baseline/reset são reproduzíveis | `PASS` — reset local reaplica a baseline versionada. |
+| G — Database local | Smoke prova banco e migration | `PASS` — lint, histórico da migration e ausência de tabelas `public`. |
+| G — Database local | Não existe domínio prematuro | `PASS` — baseline sem DDL e schema `public` sem tabelas. |
+| G — Database local | Uso remoto acidental é bloqueado | `PASS` — wrapper allowlist, `--local`, sem argumento extra/link/ref/URL. |
+| H — Testing | Unit/component/router | `PASS` — 5 arquivos e 15 testes focados na foundation. |
+| H — Testing | DB smoke e E2E | `PASS` — DB local e 4 cenários Chromium. |
+| H — Testing | Comando agregado | `PASS` — `npm run test:v2:all`. |
+| H — Testing | V1/V2 permanecem separadas | `PASS` — scripts distintos, sem skip ou alteração de expectativa legada. |
+| H — Testing | Falhas V1 não foram mascaradas | `PASS` — falhas conhecidas continuam documentadas e os arquivos V1 não mudaram. |
+| I — Build/toolchain | TypeScript strict | `PASS` — strict e checks adicionais ativos nos tsconfigs. |
+| I — Build/toolchain | Lint e boundaries | `PASS` — código, scripts, configs e E2E cobertos; imports arquiteturais protegidos. |
+| I — Build/toolchain | Build | `PASS` — bundle V2 produzido em `dist-v2`. |
+| I — Build/toolchain | Outputs são ignorados | `PASS` — build, coverage, relatórios e resultados de teste não são versionados. |
+| I — Build/toolchain | Scripts são consistentes no Windows/local | `PASS` — execução validada no PowerShell e processos E2E encerrados pelo lifecycle do runner. |
+| J — Security | Nenhum secret/credencial remota | `PASS` — revisão por padrões e inspeção do diff sem finding. |
+| J — Security | Nenhum `service_role` client-side | `PASS` — ausência de credencial e rejeição explícita de formatos privilegiados. |
+| J — Security | Nenhum bypass ou autoridade por `tenantRef` | `PASS` — não há autorização implementada na W0. |
+| J — Security | Nenhuma autorização simulada conflita com RLS futura | `PASS` — UI declara seus limites e não consulta domínio. |
+| J — Security | RLS/Auth/Storage de domínio | `NOT_APPLICABLE` — não existem tabelas, Auth ou objetos de domínio na W0. |
+| K — Reprodutibilidade | Clone limpo possui requisitos e comandos claros | `PASS` — pré-requisitos, versões e sequência from-zero documentados. |
+| K — Reprodutibilidade | Docker/Supabase, browser e portas estão documentados | `PASS` — PostgreSQL 54330, API 54331, shadow 54332 e E2E 4173. |
+| K — Reprodutibilidade | Artefatos gerados são reproduzíveis | `PASS` — lockfile, migration baseline, tipos e build possuem comandos versionados. |
+| L — Legacy preservation | V1 e tag de referência permanecem preservadas | `PASS` — nenhum arquivo da V1 foi alterado pela W0C. |
+| L — Legacy preservation | SQLs V1 não foram alterados | `PASS` — cadeia legada permanece fora de `supabase/migrations`. |
+| L — Legacy preservation | Problemas legados são conhecidos | `PASS` — falhas de slug e mock administrativo continuam registradas. |
+| L — Legacy preservation | Nenhuma correção oportunista da V1 | `PASS` — alterações restritas à foundation V2 e sua documentação. |
+
+### Evidências finais da W0C
+
+Em 2026-09-10 foram executados:
+
+- `npm audit --offline --json`: PASS, zero vulnerabilidades conhecidas no cache
+  local do lockfile;
+- `npm run test:v2:unit`: PASS, 5 arquivos e 15 testes;
+- `npm run test:v2:db`: PASS;
+- `npm run test:v2:e2e`: PASS, 4 testes Chromium;
+- `npm run test:v2:all`: PASS;
+- `npm run typecheck`: PASS;
+- `npm run lint`: PASS;
+- `npm run build`: PASS;
+- `git diff --check`: PASS;
+- revisão adversarial de imports, env, storage cliente, caches, routers,
+  QueryClient, logs e referências privilegiadas: PASS.
+
+### Limites e delegação explícita
+
+A W0 entrega somente app shell, rotas técnicas, config/error/observability,
+boundaries tipadas, toolchain, testes e banco local reconstruível. Permanecem
+fora dela:
+
+- **W1:** Auth, sessão, principal, tenant/membership autoritativos, troca de
+  contexto e limpeza de cache na mudança de sessão/tenant;
+- **W2:** Resource + Action + Scope, capabilities, antiescalada, RLS e provas
+  Tenant A/B;
+- **W3:** queries/commands de domínio, reautorização transacional, Audit,
+  History, Outbox, idempotência e processamento assíncrono;
+- **waves posteriores:** domínio operacional, Storage, hosting, CI/CD remoto,
+  CSP/supply-chain operacional e promoção de releases.
+
+Esses itens são `DEFERRED_BY_DESIGN`, não falhas da foundation. O primeiro uso
+real de query/cache tenant-owned deverá adotar a chave definida pela arquitetura
+antes de armazenar qualquer payload do tenant.
+
+### Decisão do gate
+
+Todos os itens obrigatórios da W0 estão em `PASS`, não há `FAIL`, e os itens
+adiados pertencem explicitamente às waves posteriores. Portanto:
+
+```text
+W0C_COMPLETE = YES
+FOUNDATION_READY = YES
+```
+
+Essa declaração não implica `TENANT_READY`, `AUTH_READY`,
+`AUTHORIZATION_READY`, `AUDIT_READY`, `MVP_READY` ou prontidão de migração.

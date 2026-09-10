@@ -1,11 +1,16 @@
-import type { PublicConfig } from '@/app/config/public-config'
+export type ReleaseEnvironment = 'local' | 'test' | 'staging' | 'production'
 
 export interface ReleaseIdentity {
-  environment: PublicConfig['appEnvironment']
+  environment: ReleaseEnvironment
   releaseId: string
 }
 
-export function createReleaseIdentity(config: PublicConfig): ReleaseIdentity {
+interface ReleaseConfig {
+  appEnvironment: ReleaseEnvironment
+  releaseId: string
+}
+
+export function createReleaseIdentity(config: ReleaseConfig): ReleaseIdentity {
   return Object.freeze({
     environment: config.appEnvironment,
     releaseId: config.releaseId,

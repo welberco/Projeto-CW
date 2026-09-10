@@ -1,7 +1,7 @@
-import { QueryClient } from '@tanstack/react-query'
 import { render, type RenderOptions } from '@testing-library/react'
 import type { ReactElement } from 'react'
 import { AppProviders } from '@/app/providers/app-providers'
+import { createAppQueryClient } from '@/app/query/create-query-client'
 import type { ClientCorrelationId } from '@/shared/observability/correlation'
 
 const testCorrelationId = 'correlation-test' as ClientCorrelationId
@@ -10,11 +10,12 @@ export function renderWithProviders(
   ui: ReactElement,
   options?: Omit<RenderOptions, 'wrapper'>,
 ) {
-  const queryClient = new QueryClient({
-    defaultOptions: {
-      queries: { retry: false },
-      mutations: { retry: false },
-    },
+  const queryClient = createAppQueryClient()
+  const defaultOptions = queryClient.getDefaultOptions()
+
+  queryClient.setDefaultOptions({
+    queries: { ...defaultOptions.queries, retry: false },
+    mutations: { ...defaultOptions.mutations, retry: false },
   })
 
   return {
