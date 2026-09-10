@@ -48,4 +48,19 @@ describe('app router', () => {
       await screen.findByRole('heading', { name: 'Página não encontrada' }),
     ).toBeInTheDocument()
   })
+
+  it('renders the login route without public signup', async () => {
+    renderRoute('/login')
+
+    expect(await screen.findByRole('heading', { name: 'Entrar' })).toBeVisible()
+    expect(screen.getByText(/Não há cadastro público/)).toBeVisible()
+  })
+
+  it('requires a token for the invitation route', async () => {
+    renderRoute('/convite')
+
+    expect(
+      await screen.findByRole('heading', { name: 'Convite indisponível' }),
+    ).toBeVisible()
+  })
 })

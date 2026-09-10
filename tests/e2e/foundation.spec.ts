@@ -54,3 +54,18 @@ test('renders a safe not-found state for an unknown deep link', async ({
     page.getByRole('heading', { name: 'Página não encontrada' }),
   ).toBeVisible()
 })
+
+test('renders the W1B login route without signup', async ({ page }) => {
+  await page.goto('/login')
+
+  await expect(page.getByRole('heading', { name: 'Entrar' })).toBeVisible()
+  await expect(page.getByText(/Não há cadastro público/)).toBeVisible()
+})
+
+test('keeps an invalid invitation in a safe state', async ({ page }) => {
+  await page.goto('/convite')
+
+  await expect(
+    page.getByRole('heading', { name: 'Convite indisponível' }),
+  ).toBeVisible()
+})

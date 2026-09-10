@@ -11,6 +11,8 @@ import { PlatformBoundaryPage } from '@/app/pages/platform-boundary-page'
 import { RouteErrorPage } from '@/app/pages/route-error-page'
 import { TechnicalHomePage } from '@/app/pages/technical-home-page'
 import { TenantBoundaryPage } from '@/app/pages/tenant-boundary-page'
+import { InvitationPage } from '@/app/pages/invitation-page'
+import { LoginPage } from '@/app/pages/login-page'
 
 export const appRoutes = [
   {
@@ -20,6 +22,8 @@ export const appRoutes = [
     HydrateFallback: LoadingRouteState,
     children: [
       { index: true, element: <TechnicalHomePage /> },
+      { path: 'login', element: <LoginPage /> },
+      { path: 'convite', element: <InvitationPage /> },
       {
         path: 'e/:tenantRef',
         element: <Outlet />,

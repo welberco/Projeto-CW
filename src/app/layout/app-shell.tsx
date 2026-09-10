@@ -1,8 +1,10 @@
 import { Link, Outlet } from 'react-router-dom'
 import { useRuntimeIdentity } from '@/app/providers/runtime-identity'
+import { useAuth } from '@/app/auth/use-auth'
 
 export function AppShell() {
   const { clientCorrelationId, release } = useRuntimeIdentity()
+  const { state, signOut } = useAuth()
 
   return (
     <div className="min-h-screen bg-background text-foreground">
@@ -21,9 +23,12 @@ export function AppShell() {
           >
             CW ERP <span className="text-muted-foreground">V2</span>
           </Link>
-          <span className="rounded-full border border-border bg-muted px-3 py-1 text-xs font-medium text-muted-foreground">
-            Foundation técnica
-          </span>
+          <div className="flex items-center gap-3">
+            <Link className="text-sm font-medium text-muted-foreground hover:text-foreground" to="/login">Acesso</Link>
+            {state.status === 'anonymous' || state.status === 'loading' ? null : (
+              <button className="text-sm font-medium text-muted-foreground hover:text-foreground" onClick={() => void signOut()} type="button">Sair</button>
+            )}
+          </div>
         </div>
       </header>
 

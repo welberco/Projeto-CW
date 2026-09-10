@@ -13,6 +13,8 @@ import {
   createUnconfiguredLocalReleaseIdentity,
 } from '@/shared/observability/release'
 import { logSafeError } from '@/shared/observability/safe-logger'
+import { createAuthGateway } from '@/infrastructure/supabase/auth-gateway'
+import { createAppSupabaseClient } from '@/infrastructure/supabase/client'
 
 export function bootstrapApplication(
   root: Root,
@@ -25,6 +27,8 @@ export function bootstrapApplication(
     const release = createReleaseIdentity(config)
     const queryClient = createAppQueryClient()
     const router = createAppRouter()
+    const supabaseClient = createAppSupabaseClient(config)
+    const authGateway = createAuthGateway(supabaseClient)
 
     root.render(
       <StrictMode>
@@ -32,6 +36,7 @@ export function bootstrapApplication(
           clientCorrelationId={clientCorrelationId}
           queryClient={queryClient}
           release={release}
+          authGateway={authGateway}
         >
           <RouterProvider router={router} />
         </AppProviders>
