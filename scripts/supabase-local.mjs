@@ -24,6 +24,7 @@ const expectedMigrationVersions = [
   '20260910000000',
   '20260910001000',
   '20260910002000',
+  '20260910003000',
 ]
 const expectedW1ATables = [
   'app_users',
@@ -171,10 +172,11 @@ switch (command) {
       '--local',
       'supabase/tests/w1a_constraints.sql',
       'supabase/tests/w1a_rls.sql',
+      'supabase/tests/w1b_auth_bootstrap_invitations.sql',
     ])
 
     process.stdout.write(
-      'DB_SMOKE_OK: migrations W0/W1A aplicadas, schema esperado presente e testes pgTAP aprovados.\n',
+      'DB_SMOKE_OK: migrations W0/W1A/W1B aplicadas, schema esperado presente e testes pgTAP aprovados.\n',
     )
     break
   }

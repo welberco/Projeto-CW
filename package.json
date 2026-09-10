@@ -21,6 +21,7 @@
     "db:stop": "node scripts/supabase-local.mjs stop",
     "db:reset": "node scripts/supabase-local.mjs reset",
     "db:types": "node scripts/supabase-local.mjs types",
+    "ops:w1b:bootstrap": "node scripts/w1b-local-bootstrap.mjs",
     "test:legacy": "node --check app.js && node --check multiempresa.js && node --check arquitetura-v2.js && node tests/multiempresa.test.mjs && node tests/interface.test.mjs && node tests/interface-v2.test.mjs && node tests/admin-users.test.mjs"
   },
   "dependencies": {
