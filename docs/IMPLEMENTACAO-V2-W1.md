@@ -10,14 +10,15 @@ W0_COMPLETE = YES
 FOUNDATION_READY = YES
 W1_PLANNING_COMPLETE = YES
 W1A_IMPLEMENTATION_AUTHORED = YES
-W1A_DATA_MODEL_READY = NO
+W1A_DATA_MODEL_READY = YES
 AUTH_READY = NO
 TENANT_READY = NO
 IDENTITY_TENANT_READY = NO
 ```
 
-`W1A_DATA_MODEL_READY` permanece `NO` até que reset, geração de tipos e testes
-DB/RLS sejam executados no Supabase local real.
+`W1A_DATA_MODEL_READY` está aprovado pelas migrations reproduzíveis, execução
+real no Supabase local, tipos regenerados e testes DB/RLS aprovados. Os gates
+de Auth, Tenant e Identity/Tenant continuam pendentes das etapas W1B–W1E.
 
 ## W1A — modelo físico, migrations e RLS base
 
@@ -110,24 +111,31 @@ O argumento de tenant é apenas target confrontado com a membership persistida.
 - Invitation/Audit fechados;
 - bloqueio, revogação, suspensão e inativação refletidos no acesso.
 
-### Validação nesta execução
+### Validação real no Supabase local
 
 | Validação | Resultado |
 | --- | --- |
 | aplicação auxiliar das migrations em PGlite | `PASS`: 6 tabelas, trigger Auth → Application User, UUID v4 inválido rejeitado (`23514`) e Audit UPDATE rejeitado (`55000`); não substitui Supabase/RLS real |
 | `node --check scripts/supabase-local.mjs` | `PASS` |
 | lint isolado do harness | `PASS` |
-| Docker | `BLOCKED`: executável indisponível nesta sessão Codex |
-| `npm run db:reset` | `BLOCKED` após execução: Docker indisponível |
-| `npm run db:types` | `BLOCKED` após execução: Docker indisponível; arquivo gerado não foi editado manualmente |
-| `npm run test:v2:db` | `BLOCKED` após execução: Docker indisponível |
+| `npm run db:reset` | `PASS`: migrations W0/W1A aplicadas do zero |
+| `npm run db:types` | `PASS`: `database.types.ts` regenerado pelo Supabase CLI contra o banco local, sem edição manual |
+| `npm run test:v2:db` | `PASS`: smoke do schema e pgTAP aprovados |
+| pgTAP | `PASS`: 2 arquivos, 60/60 testes (`w1a_constraints.sql` e `w1a_rls.sql`) |
 | `npm run test:v2:unit` | `PASS`: 5 arquivos, 15 testes |
 | `npm run typecheck` | `PASS` |
 | `npm run lint` | `PASS` |
 | `npm run build` | `PASS`: 188 módulos transformados |
-| `npm run test:v2:all` | não executado; depende do banco local e inclui E2E fora do fechamento W1A |
+| E2E Chromium | `PASS`: 4/4 testes |
+| `npm run test:v2:all` | `PASS` |
 
-Comandos manuais exatos para PowerShell com Docker acessível:
+O smoke inicialmente reportou, de forma incorreta, a ausência de
+`public.app_users`: o dump atual do Supabase CLI emite `CREATE TABLE IF NOT
+EXISTS`, enquanto o harness reconhecia somente `CREATE TABLE`. A correção em
+`scripts/supabase-local.mjs` tornou somente `IF NOT EXISTS` opcional na regex;
+nenhum schema, migration, RLS ou teste de banco foi alterado.
+
+Os comandos executados no PowerShell com Docker/Supabase local acessíveis foram:
 
 ```powershell
 npm run db:reset
@@ -155,9 +163,14 @@ git diff --check
 - e-mail não foi duplicado em `app_users`; invitation persiste somente hash;
 - nenhum elemento de W1B/W2/W3 foi antecipado além do Audit mínimo aprovado.
 
-### Pendência para fechar o gate
+### Fechamento do gate W1A
 
-Em uma sessão com Docker, executar a sequência manual, revisar o
-`database.types.ts` gerado exclusivamente pelo CLI e confirmar os testes pgTAP
-reais. Até essa evidência existir, W1A não está pronta para promover os gates de
-implementação e W1B não deve começar.
+As migrations são reproduzíveis; o schema real e os tipos regenerados confirmam
+as seis tabelas W1A; e os testes cobrem constraints, lifecycle histórico,
+isolamento Tenant A/B, negação a `tenant_ref`/IDs forjados, memberships
+blocked/revoked, tenant suspended/inactive, Audit append-only, helpers, grants
+mínimos e RLS deny-by-default. A revisão de segurança não identificou secrets,
+URLs remotas, credenciais, service role no frontend ou antecipação de W1B.
+
+`W1A_DATA_MODEL_READY = YES`. Isto não autoriza W1B nem promove
+`AUTH_READY`, `TENANT_READY` ou `IDENTITY_TENANT_READY`, que permanecem `NO`.

@@ -156,7 +156,7 @@ switch (command) {
 
     for (const tableName of expectedW1ATables) {
       const createTablePattern = new RegExp(
-        `CREATE\\s+TABLE\\s+(?:"?public"?\\.)"?${tableName}"?\\s*\\(`,
+        `CREATE\\s+TABLE(?:\\s+IF\\s+NOT\\s+EXISTS)?\\s+(?:"?public"?\\.)"?${tableName}"?\\s*\\(`,
         'iu',
       )
 

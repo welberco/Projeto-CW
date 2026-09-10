@@ -9,7 +9,319 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
-      [_ in never]: never
+      app_users: {
+        Row: {
+          blocked_at: string | null
+          created_at: string
+          display_name: string | null
+          id: string
+          inactivated_at: string | null
+          status: string
+          updated_at: string
+          version: number
+        }
+        Insert: {
+          blocked_at?: string | null
+          created_at?: string
+          display_name?: string | null
+          id: string
+          inactivated_at?: string | null
+          status?: string
+          updated_at?: string
+          version?: number
+        }
+        Update: {
+          blocked_at?: string | null
+          created_at?: string
+          display_name?: string | null
+          id?: string
+          inactivated_at?: string | null
+          status?: string
+          updated_at?: string
+          version?: number
+        }
+        Relationships: []
+      }
+      audit_events: {
+        Row: {
+          actor_kind: string
+          actor_user_id: string | null
+          correlation_id: string
+          entity_id: string | null
+          entity_type: string
+          event_type: string
+          id: string
+          metadata: Json
+          occurred_at: string
+          tenant_id: string | null
+        }
+        Insert: {
+          actor_kind: string
+          actor_user_id?: string | null
+          correlation_id?: string
+          entity_id?: string | null
+          entity_type: string
+          event_type: string
+          id?: string
+          metadata?: Json
+          occurred_at?: string
+          tenant_id?: string | null
+        }
+        Update: {
+          actor_kind?: string
+          actor_user_id?: string | null
+          correlation_id?: string
+          entity_id?: string | null
+          entity_type?: string
+          event_type?: string
+          id?: string
+          metadata?: Json
+          occurred_at?: string
+          tenant_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "audit_events_actor_user_id_fkey"
+            columns: ["actor_user_id"]
+            isOneToOne: false
+            referencedRelation: "app_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "audit_events_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tenant_entitlements: {
+        Row: {
+          created_at: string
+          created_by: string
+          enabled: boolean
+          module_key: string
+          tenant_id: string
+          updated_at: string
+          version: number
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          enabled: boolean
+          module_key: string
+          tenant_id: string
+          updated_at?: string
+          version?: number
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          enabled?: boolean
+          module_key?: string
+          tenant_id?: string
+          updated_at?: string
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tenant_entitlements_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "app_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tenant_entitlements_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tenant_invitations: {
+        Row: {
+          accepted_at: string | null
+          created_at: string
+          created_by: string
+          expires_at: string
+          id: string
+          invite_ref: string
+          invited_user_id: string | null
+          recipient_email_hash: string
+          revoked_at: string | null
+          status: string
+          tenant_id: string
+          updated_at: string
+          version: number
+        }
+        Insert: {
+          accepted_at?: string | null
+          created_at?: string
+          created_by: string
+          expires_at: string
+          id?: string
+          invite_ref?: string
+          invited_user_id?: string | null
+          recipient_email_hash: string
+          revoked_at?: string | null
+          status?: string
+          tenant_id: string
+          updated_at?: string
+          version?: number
+        }
+        Update: {
+          accepted_at?: string | null
+          created_at?: string
+          created_by?: string
+          expires_at?: string
+          id?: string
+          invite_ref?: string
+          invited_user_id?: string | null
+          recipient_email_hash?: string
+          revoked_at?: string | null
+          status?: string
+          tenant_id?: string
+          updated_at?: string
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tenant_invitations_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "app_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tenant_invitations_invited_user_id_fkey"
+            columns: ["invited_user_id"]
+            isOneToOne: false
+            referencedRelation: "app_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tenant_invitations_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tenant_memberships: {
+        Row: {
+          blocked_at: string | null
+          created_at: string
+          created_by: string
+          id: string
+          joined_at: string
+          revoked_at: string | null
+          status: string
+          tenant_id: string
+          updated_at: string
+          user_id: string
+          version: number
+        }
+        Insert: {
+          blocked_at?: string | null
+          created_at?: string
+          created_by: string
+          id?: string
+          joined_at: string
+          revoked_at?: string | null
+          status: string
+          tenant_id: string
+          updated_at?: string
+          user_id: string
+          version?: number
+        }
+        Update: {
+          blocked_at?: string | null
+          created_at?: string
+          created_by?: string
+          id?: string
+          joined_at?: string
+          revoked_at?: string | null
+          status?: string
+          tenant_id?: string
+          updated_at?: string
+          user_id?: string
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tenant_memberships_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "app_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tenant_memberships_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tenant_memberships_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "app_users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tenants: {
+        Row: {
+          created_at: string
+          created_by: string
+          display_name: string
+          id: string
+          inactivated_at: string | null
+          status: string
+          suspended_at: string | null
+          tenant_ref: string
+          updated_at: string
+          version: number
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          display_name: string
+          id?: string
+          inactivated_at?: string | null
+          status: string
+          suspended_at?: string | null
+          tenant_ref?: string
+          updated_at?: string
+          version?: number
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          display_name?: string
+          id?: string
+          inactivated_at?: string | null
+          status?: string
+          suspended_at?: string | null
+          tenant_ref?: string
+          updated_at?: string
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tenants_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "app_users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
