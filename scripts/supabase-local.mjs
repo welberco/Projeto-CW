@@ -19,7 +19,20 @@ const generatedTypesPath = path.join(
   'supabase',
   'database.types.ts',
 )
-const baselineVersion = '20260909000000'
+const expectedMigrationVersions = [
+  '20260909000000',
+  '20260910000000',
+  '20260910001000',
+  '20260910002000',
+]
+const expectedW1ATables = [
+  'app_users',
+  'tenants',
+  'tenant_memberships',
+  'tenant_invitations',
+  'tenant_entitlements',
+  'audit_events',
+]
 const supportedCommands = new Set(['start', 'stop', 'reset', 'types', 'smoke'])
 
 const command = process.argv[2]
@@ -130,8 +143,10 @@ switch (command) {
       capture: true,
     })
 
-    if (!migrations.includes(baselineVersion)) {
-      fail(`Migration baseline ${baselineVersion} ausente no banco local.`)
+    for (const migrationVersion of expectedMigrationVersions) {
+      if (!migrations.includes(migrationVersion)) {
+        fail(`Migration ${migrationVersion} ausente no banco local.`)
+      }
     }
 
     const publicSchema = runLocal(
@@ -139,12 +154,27 @@ switch (command) {
       { capture: true },
     )
 
-    if (/CREATE\s+TABLE\s+(?:"?public"?\.)/iu.test(publicSchema)) {
-      fail('A baseline W0B não pode conter tabelas no schema public.')
+    for (const tableName of expectedW1ATables) {
+      const createTablePattern = new RegExp(
+        `CREATE\\s+TABLE\\s+(?:"?public"?\\.)"?${tableName}"?\\s*\\(`,
+        'iu',
+      )
+
+      if (!createTablePattern.test(publicSchema)) {
+        fail(`Tabela W1A public.${tableName} ausente no banco local.`)
+      }
     }
 
+    runLocal([
+      'test',
+      'db',
+      '--local',
+      'supabase/tests/w1a_constraints.sql',
+      'supabase/tests/w1a_rls.sql',
+    ])
+
     process.stdout.write(
-      `DB_SMOKE_OK: banco local alcançável, migration ${baselineVersion} aplicada e schema public sem tabelas.\n`,
+      'DB_SMOKE_OK: migrations W0/W1A aplicadas, schema esperado presente e testes pgTAP aprovados.\n',
     )
     break
   }
