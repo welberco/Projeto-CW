@@ -12,6 +12,8 @@ W1_PLANNING_COMPLETE = YES
 W1A_IMPLEMENTATION_AUTHORED = YES
 W1A_DATA_MODEL_READY = YES
 W1B_AUTH_BOOTSTRAP_INVITATIONS_READY = YES
+W1C_IMPLEMENTATION_AUTHORED = YES
+W1C_SESSION_TENANT_CONTEXT_READY = NO
 AUTH_READY = NO
 TENANT_READY = NO
 IDENTITY_TENANT_READY = NO
@@ -19,7 +21,8 @@ IDENTITY_TENANT_READY = NO
 
 `W1A_DATA_MODEL_READY` está aprovado pelas migrations reproduzíveis, execução
 real no Supabase local, tipos regenerados e testes DB/RLS aprovados. Os gates
-de Auth, Tenant e Identity/Tenant continuam pendentes das etapas W1B–W1E.
+de Auth, Tenant e Identity/Tenant continuam pendentes do fechamento das etapas
+W1C–W1E.
 
 ## W1A — modelo físico, migrations e RLS base
 
@@ -295,3 +298,156 @@ os tipos foram gerados contra o schema local real, e schema lint, pgTAP, unit,
 E2E e a suíte completa passaram. A revisão estática também confirmou sessão SDK
 oficial, projeção fail-closed, bootstrap e convites restritos, RLS/grants mínimos
 e ausência de credenciais, bypasses ou tokens brutos persistidos/logados.
+
+## W1C — session, tenant context e cache isolation
+
+### Análise técnica e recorte
+
+A W1C foi implementada sobre os contratos fechados no plano W1: usuário comum
+possui uma única membership operacional; `tenant_ref` é apenas seletor UUID v4
+opaco; Supabase Auth permanece autoridade de sessão; e o contexto persistido no
+banco, resolvido com `auth.uid()`, é a única fonte de autoridade tenant.
+
+Não foram adicionados `CompanySwitcher`, tenant em JWT metadata, cookie,
+`localStorage` ou `sessionStorage`, autorização por URL, RBAC W2, rotas/UX W1D,
+Global Admin ou protocolo próprio entre abas.
+
+### W1C1 — resolver autoritativo
+
+A migration `20260910004000_w1c_tenant_context_resolver.sql` cria
+`public.resolve_my_tenant_context(target_tenant_ref uuid default null)` como RPC
+read-only, `STABLE`, `SECURITY DEFINER`, com `search_path` vazio e `EXECUTE`
+exclusivo para `authenticated`.
+
+O resolver:
+
+- deriva o ator somente de `auth.uid()`;
+- valida Application User, membership, tenant e entitlement `maintenance` nessa
+  ordem;
+- resolve a única membership operacional do principal antes de comparar a URL;
+- nunca recebe `user_id` ou `tenant_id` como autoridade;
+- retorna projeção completa apenas no estado `ready`;
+- retorna `tenant_context_unavailable`, sem IDs tenant/membership, tanto para
+  uma referência de outro tenant quanto para uma inexistente;
+- diferencia tenant suspenso/inativo somente depois de provar a membership do
+  próprio usuário;
+- reflete bloqueio/revogação persistidos mesmo com JWT Auth ainda válido.
+
+Estados retornados: `unauthenticated`, `profile_missing`,
+`principal_unavailable`, `no_membership`, `membership_unavailable`,
+`tenant_unavailable`, `feature_unavailable`, `tenant_context_unavailable` e
+`ready`.
+
+### W1C2 — SessionProvider e máquina de estados
+
+O `SessionProvider` substitui a projeção W1B construída por múltiplas leituras no
+browser pelo RPC único. A máquina de estados tipada falha fechada e só expõe
+`AuthorizedTenantContext` em `ready`.
+
+`ContextIdentity` contém `principalId`, `tenantId`, `membershipId`,
+`membershipVersion` e `contextGeneration`. Refresh de token para o mesmo
+contexto persistido conserva a geração; troca de principal, membership ou versão
+cria nova geração. Resoluções concorrentes são cercadas por um contador local,
+impedindo uma resposta anterior de sobrescrever a mais recente.
+
+A rota `/e/:tenantRef` solicita resolução server-side e só apresenta o contexto
+se a referência retornada pelo resolver corresponde à URL. Referência inválida,
+alheia ou indisponível produz estado seguro, sem converter o seletor em
+`tenant_id` ou autoridade.
+
+### W1C3 — Auth events, router e revalidação
+
+O gateway entrega os eventos oficiais do Supabase Auth ao provider. Inicialização,
+`SIGNED_IN`, refresh de token e demais mudanças Auth reexecutam o resolver;
+`SIGNED_OUT` bloqueia o estado, limpa cache e navega com replace para `/login`.
+Foco da janela revalida o contexto para cobrir retorno à aba sem criar protocolo
+customizado entre abas.
+
+Login limpa estado anônimo transitório antes de carregar contexto. Logout e
+sessão expirada invalidam respostas concorrentes, bloqueiam novas queries
+tenant, cancelam requests, limpam o QueryClient, removem a projeção em memória e
+coordenam navegação/revalidação do router. Aceite de convite também reexecuta o
+resolver antes de liberar contexto.
+
+### W1C4 — cache isolation e testes
+
+`tenantQueryKey` exige, em toda chave tenant-owned, principal, geração de
+contexto, tenant, membership e versão antes do recurso, query, filtros e projeção.
+Essa identidade particiona cache, mas não autoriza requests.
+
+O cleanup executa `cancelQueries()` seguido de `queryClient.clear()`; apenas
+invalidar queries não é considerado suficiente. Os testes unitários cobrem
+estados do resolver, projeção parcial rejeitada, parser UUID v4, geração estável
+em refresh, nova geração em troca de principal, boundary ao perder contexto,
+composição de query keys, ordem segura de logout, limpeza em troca de usuário e
+propagação `SIGNED_OUT` por evento oficial.
+
+O pgTAP `w1c_tenant_context.sql` cobre grants, ausência de `PUBLIC`/`anon`, User
+A/Tenant A, User B/Tenant B, referência B versus inexistente indistinguível,
+profile ausente, principal blocked/inactive, membership ausente/blocked/revoked,
+tenant suspenso, entitlement desabilitado e revogação com JWT ainda válido.
+
+### Commits revisáveis
+
+| Commit | Conteúdo |
+| --- | --- |
+| `511c898` | migration, resolver, pgTAP, harness local e verificação estrutural auxiliar |
+| `67b16e7` | SessionProvider, Auth events, router coordination, query keys, cache cleanup, boundaries e testes frontend |
+
+### Validações executadas
+
+| Validação | Resultado |
+| --- | --- |
+| `npm run test:v2:db:w1c:embedded` | `PASS`: cadeia estrutural W1A/W1C aplicada em PGlite e resolver criado; evidência auxiliar, não substitui Supabase/RLS real |
+| `node --check scripts/w1c-embedded-migration-check.mjs` | `PASS` |
+| `npm run test:v2:unit` | `PASS`: 11 arquivos, 43/43 testes |
+| `npm run typecheck` | `PASS` |
+| `npm run lint` | `PASS` |
+| `npm run build` | `PASS`: 240 módulos; aviso não bloqueante de chunk acima de 500 kB |
+| `npm run test:v2:e2e` | `PASS`: 6/6 testes Chromium, incluindo deep link tenant sem sessão fail-closed após refresh/back/forward |
+| `git diff --check` | `PASS` |
+| `npm run db:reset` | `BLOCKED`: Docker compatível não está instalado ou acessível nesta máquina |
+| `npm run db:types` | `BLOCKED`: mesmo bloqueio; `database.types.ts` foi preservado sem edição manual |
+| `npm run test:v2:db` | `BLOCKED`: pgTAP real e schema lint dependem do Supabase local |
+| `npm run test:v2:all` | `BLOCKED` em `test:v2:db` depois de unitários 43/43; E2E foi executado separadamente e passou 6/6 |
+
+Nenhum remoto foi acessado, nenhum push foi feito e nenhuma credencial, chave,
+JWT, `service_role`, senha ou tenant persistido em storage do browser foi
+adicionado.
+
+### Avaliação do gate W1C
+
+A implementação W1C1–W1C4 está authored e todas as validações que não dependem
+de Docker passaram. Não há `PRODUCT/ARCHITECTURE DECISION REQUIRED`.
+
+O gate permanece fechado porque a evidência obrigatória no Supabase local ainda
+não pôde ser produzida: reset from-zero, geração real de tipos, schema lint e
+pgTAP W1C. Quando um runtime Docker compatível estiver disponível, executar:
+
+```powershell
+npm run db:reset
+npm run db:types
+npm run test:v2:db
+npm run test:v2:unit
+npm run typecheck
+npm run lint
+npm run build
+npm run test:v2:e2e
+npm run test:v2:all
+git diff --check
+```
+
+Somente se essa sequência passar e `database.types.ts` incluir o contrato gerado
+do resolver o gate poderá ser promovido. Até lá:
+
+```text
+W1A_DATA_MODEL_READY = YES
+W1B_AUTH_BOOTSTRAP_INVITATIONS_READY = YES
+W1C_IMPLEMENTATION_AUTHORED = YES
+W1C_SESSION_TENANT_CONTEXT_READY = NO
+AUTH_READY = NO
+TENANT_READY = NO
+IDENTITY_TENANT_READY = NO
+```
+
+W1D, W1E e W2 não foram iniciadas.
