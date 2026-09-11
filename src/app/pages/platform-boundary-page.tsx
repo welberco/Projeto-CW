@@ -1,19 +1,25 @@
+import { useAuth } from '@/app/auth/use-auth'
+import { SessionStatePage } from '@/app/pages/session-state-page'
+import { StatePanel } from '@/shared/ui/state-panel'
+
 export function PlatformBoundaryPage() {
+  const { state, signOut } = useAuth()
+
+  if (state.status !== 'ready') {
+    return (
+      <div className="px-4 py-10 sm:px-6">
+        <SessionStatePage state={state} onSignOut={signOut} />
+      </div>
+    )
+  }
+
   return (
-    <section aria-labelledby="platform-boundary-title" className="max-w-3xl">
-      <p className="text-sm font-semibold uppercase tracking-wider text-primary">
-        Boundary técnica
-      </p>
-      <h1
-        className="mt-2 text-3xl font-semibold tracking-tight"
-        id="platform-boundary-title"
-      >
-        Operações de plataforma
-      </h1>
-      <p className="mt-4 leading-7 text-muted-foreground">
-        Esta rota prova a separação física do namespace de plataforma. Nenhuma
-        função de Administrador Global ou bypass de segurança existe nesta etapa.
-      </p>
-    </section>
+    <div className="px-4 py-10 sm:px-6">
+      <StatePanel
+        className="mx-auto max-w-3xl"
+        description="Nenhuma função de Administrador Global ou bypass de segurança foi implementado nesta etapa."
+        title="Operações de plataforma indisponíveis"
+      />
+    </div>
   )
 }

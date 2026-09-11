@@ -1,5 +1,7 @@
 import { useState, type FormEvent } from 'react'
+import { Navigate } from 'react-router-dom'
 import { useAuth } from '@/app/auth/use-auth'
+import { canonicalTenantPath } from '@/app/router/tenant-route'
 import { Button } from '@/shared/ui/button'
 import { StatePanel } from '@/shared/ui/state-panel'
 
@@ -36,13 +38,7 @@ export function LoginPage() {
   }
 
   if (state.status === 'ready') {
-    return (
-      <StatePanel
-        action={<Button onClick={() => void signOut()} variant="secondary">Sair</Button>}
-        description="Sua identidade e seu acesso operacional foram verificados."
-        title="Sessão autenticada"
-      />
-    )
+    return <Navigate replace to={canonicalTenantPath(state.context.tenantRef)} />
   }
 
   if (state.status !== 'unauthenticated') {
@@ -57,7 +53,7 @@ export function LoginPage() {
   }
 
   return (
-    <section className="mx-auto max-w-md rounded-xl border border-border bg-card p-6 shadow-sm" aria-labelledby="login-title">
+    <section className="mx-auto my-10 max-w-md rounded-xl border border-border bg-card p-6 shadow-sm" aria-labelledby="login-title">
       <p className="text-sm font-semibold uppercase tracking-wider text-primary">CW ERP</p>
       <h1 className="mt-2 text-2xl font-semibold tracking-tight" id="login-title">Entrar</h1>
       <p className="mt-2 text-sm leading-6 text-muted-foreground">Use a conta fornecida pela sua organização. Não há cadastro público.</p>

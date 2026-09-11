@@ -7,10 +7,11 @@ export function NotFoundPage() {
     <StatePanel
       action={
         <Button asChild variant="secondary">
-          <Link to="/">Voltar para a foundation</Link>
+          <Link to="/">Voltar ao início</Link>
         </Button>
       }
-      description="O endereço informado não corresponde a uma rota técnica disponível nesta etapa."
+      className="mx-auto max-w-3xl"
+      description="O endereço informado não corresponde a uma rota disponível."
       title="Página não encontrada"
     />
   )
