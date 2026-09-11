@@ -119,6 +119,41 @@ describe('session provider lifecycle', () => {
     expect(screen.getByLabelText('generation')).toHaveTextContent('2')
   })
 
+  it('clears tenant cache when the persisted membership version changes', async () => {
+    const changedMembership: TenantContextResolution = {
+      ...readyA,
+      context: { ...readyA.context, membershipVersion: 2 },
+    }
+    const test = setup([readyA, changedMembership])
+    expect(await screen.findByText('ready')).toBeVisible()
+
+    act(() => test.getListener()?.('USER_UPDATED'))
+
+    await waitFor(() => expect(test.cancelQueries).toHaveBeenCalledOnce())
+    expect(test.queryClient.getQueryData(['sensitive'])).toBeUndefined()
+    expect(screen.getByLabelText('generation')).toHaveTextContent('2')
+  })
+
+  it.each([
+    ['principal_unavailable', { status: 'principal_unavailable', principalId: 'principal-a' }],
+    ['membership_unavailable', { status: 'membership_unavailable', principalId: 'principal-a' }],
+    ['tenant_unavailable', { status: 'tenant_unavailable', principalId: 'principal-a' }],
+    ['unauthenticated', { status: 'unauthenticated' }],
+  ] satisfies Array<[string, TenantContextResolution]>) (
+    'clears tenant cache when revalidation returns %s',
+    async (status, invalidatedResolution) => {
+      const test = setup([readyA, invalidatedResolution])
+      expect(await screen.findByText('ready')).toBeVisible()
+
+      act(() => test.getListener()?.('TOKEN_REFRESHED'))
+
+      await waitFor(() => expect(test.cancelQueries).toHaveBeenCalledOnce())
+      expect(test.queryClient.getQueryData(['sensitive'])).toBeUndefined()
+      expect(await screen.findByText(status)).toBeVisible()
+      expect(test.revalidate).toHaveBeenCalledOnce()
+    },
+  )
+
   it('blocks state, cancels cache, signs out and navigates in safe order', async () => {
     const test = setup([readyA])
     expect(await screen.findByText('ready')).toBeVisible()

@@ -155,6 +155,9 @@ describe('app router', () => {
       screen.queryByRole('heading', { name: 'Visão Geral' }),
     ).not.toBeInTheDocument()
 
+    await waitFor(() => {
+      expect(completeContextResolution).toBeTypeOf('function')
+    })
     act(() => completeContextResolution?.(readyResolution))
     expect(
       await screen.findByRole('heading', { name: 'Visão Geral' }),
@@ -194,6 +197,9 @@ describe('app router', () => {
       screen.queryByRole('heading', { name: 'Visão Geral' }),
     ).not.toBeInTheDocument()
 
+    await waitFor(() => {
+      expect(completeTargetResolution).toBeTypeOf('function')
+    })
     act(() => completeTargetResolution?.(readyResolution))
     expect(
       await screen.findByRole('heading', { name: 'Visão Geral' }),

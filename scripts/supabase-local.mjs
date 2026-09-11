@@ -175,10 +175,11 @@ switch (command) {
       'supabase/tests/w1a_rls.sql',
       'supabase/tests/w1b_auth_bootstrap_invitations.sql',
       'supabase/tests/w1c_tenant_context.sql',
+      'supabase/tests/w1e_identity_tenant_hardening.sql',
     ])
 
     process.stdout.write(
-      'DB_SMOKE_OK: migrations W0/W1A/W1B/W1C aplicadas, schema esperado presente e testes pgTAP aprovados.\n',
+      'DB_SMOKE_OK: migrations W0/W1A/W1B/W1C aplicadas, schema esperado presente e testes pgTAP W1A-W1E aprovados.\n',
     )
     break
   }
