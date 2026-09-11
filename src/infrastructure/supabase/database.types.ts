@@ -154,6 +154,7 @@ export type Database = {
           revoked_at: string | null
           status: string
           tenant_id: string
+          token_hash: string | null
           updated_at: string
           version: number
         }
@@ -169,6 +170,7 @@ export type Database = {
           revoked_at?: string | null
           status?: string
           tenant_id: string
+          token_hash?: string | null
           updated_at?: string
           version?: number
         }
@@ -184,6 +186,7 @@ export type Database = {
           revoked_at?: string | null
           status?: string
           tenant_id?: string
+          token_hash?: string | null
           updated_at?: string
           version?: number
         }
@@ -327,7 +330,53 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      accept_tenant_invitation: {
+        Args: { correlation_id?: string; invitation_token: string }
+        Returns: {
+          membership_id: string
+          tenant_ref: string
+        }[]
+      }
+      bootstrap_initial_tenant: {
+        Args: {
+          bootstrap_user_id: string
+          correlation_id?: string
+          tenant_display_name: string
+        }
+        Returns: {
+          tenant_id: string
+          tenant_ref: string
+        }[]
+      }
+      create_tenant_invitation: {
+        Args: {
+          correlation_id?: string
+          invitation_expires_at: string
+          operator_user_id: string
+          recipient_email: string
+          target_tenant_id: string
+        }
+        Returns: {
+          invitation_token: string
+          invite_ref: string
+        }[]
+      }
+      expire_tenant_invitation: {
+        Args: {
+          correlation_id?: string
+          operator_user_id: string
+          target_invite_ref: string
+        }
+        Returns: undefined
+      }
+      revoke_tenant_invitation: {
+        Args: {
+          correlation_id?: string
+          operator_user_id: string
+          target_invite_ref: string
+        }
+        Returns: undefined
+      }
     }
     Enums: {
       [_ in never]: never

@@ -13,17 +13,6 @@ export interface AuthGateway {
   onAuthChange: (listener: () => void) => () => void
 }
 
-interface RpcResult {
-  error: { message?: string } | null
-}
-
-interface NarrowRpcClient {
-  rpc(
-    name: 'accept_tenant_invitation',
-    args: { invitation_token: string; correlation_id: string },
-  ): PromiseLike<RpcResult>
-}
-
 function safeAuthError(code: string, category: 'unauthenticated' | 'unavailable') {
   return new AppError({
     code,
@@ -136,10 +125,7 @@ export function createAuthGateway(client: AppSupabaseClient): AuthGateway {
       }
     },
     async acceptInvitation(token, correlationId) {
-      // database.types.ts remains CLI-generated; this narrow cast disappears
-      // after the local W1B migration is applied and types are regenerated.
-      const rpcClient = client as unknown as NarrowRpcClient
-      const { error } = await rpcClient.rpc('accept_tenant_invitation', {
+      const { error } = await client.rpc('accept_tenant_invitation', {
         invitation_token: token,
         correlation_id: correlationId,
       })

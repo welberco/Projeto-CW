@@ -11,7 +11,7 @@ FOUNDATION_READY = YES
 W1_PLANNING_COMPLETE = YES
 W1A_IMPLEMENTATION_AUTHORED = YES
 W1A_DATA_MODEL_READY = YES
-W1B_AUTH_BOOTSTRAP_INVITATIONS_READY = NO
+W1B_AUTH_BOOTSTRAP_INVITATIONS_READY = YES
 AUTH_READY = NO
 TENANT_READY = NO
 IDENTITY_TENANT_READY = NO
@@ -256,40 +256,42 @@ direta de cliente foi concedida.
   revoke/expire, conflicts de membership, tenant lifecycle e Audit;
 - E2E local cobre renderização de login/sem sessão e invitation inválida segura.
 
-### Validação e limitações nesta sessão
+### Validação real local e fechamento
 
 | Validação | Resultado |
 | --- | --- |
 | migrations em PostgreSQL embarcado auxiliar | `PASS` sintático/estrutural; não substitui Supabase/RLS real |
+| `npm run db:reset` | `PASS`: migrations W0/W1A/W1B reproduzidas do zero no Supabase local |
+| `npm run db:types` | `PASS`: `database.types.ts` regenerado pelo Supabase CLI contra o banco local; inclui `token_hash` e os cinco RPCs W1B, sem edição manual |
+| schema lint | `PASS`: sem erros de schema |
+| `npm run test:v2:db` / pgTAP real | `PASS`: smoke do schema e 102/102 testes em `w1a_constraints.sql`, `w1a_rls.sql` e `w1b_auth_bootstrap_invitations.sql` |
 | `npm run test:v2:unit` | `PASS`: 8 arquivos, 35 testes |
 | `npm run typecheck` | `PASS` |
 | `npm run lint` | `PASS` |
 | `node --check scripts/w1b-local-bootstrap.mjs` | `PASS` |
 | `npm run build` | `PASS`: 239 módulos transformados; aviso não bloqueante de chunk acima de 500 kB |
 | E2E Chromium | `PASS`: 6/6 testes locais controlados |
-| Docker/Supabase local | `BLOCKED`: executável Docker indisponível nesta sessão Codex |
-| `npm run db:reset` | `BLOCKED` por Docker indisponível |
-| `npm run db:types` | `BLOCKED` por Docker indisponível; arquivo gerado não foi editado |
-| `npm run test:v2:db` / pgTAP real | `BLOCKED` por Docker indisponível |
-| `npm run test:v2:all` | `BLOCKED`: inclui o gate DB indisponível; unit e E2E foram executados separadamente |
+| `npm run test:v2:all` | `PASS`: unit, banco e E2E Chromium |
 
 A busca adversarial confirmou que as ocorrências de `service_role` estão
 restritas à rejeição de configuração pública, ao runner local e aos grants ops;
 não há chave concreta, senha hardcoded, `is_admin`, bypass, token bruto
 persistido/logado ou tenant/user de payload no command de aceite.
 
-Até a validação manual real, o adapter RPC usa um cast estreito e documentado;
-`database.types.ts` deve ser regenerado pelo CLI e o cast removido depois que a
-migration W1B estiver aplicada. W1C (resolver/context/cache), W1D, W1E e W2 não
-foram iniciadas.
+Após a geração real dos tipos, o cast RPC temporário foi removido mecanicamente;
+o adapter usa agora o contrato `accept_tenant_invitation` gerado pelo CLI. W1C
+(resolver/context/cache), W1D, W1E e W2 não foram iniciadas.
 
 ```text
 W1A_DATA_MODEL_READY = YES
-W1B_AUTH_BOOTSTRAP_INVITATIONS_READY = NO
+W1B_AUTH_BOOTSTRAP_INVITATIONS_READY = YES
 AUTH_READY = NO
 TENANT_READY = NO
 IDENTITY_TENANT_READY = NO
 ```
 
-O gate W1B permanece `NO` até `db:reset`, `db:types`, pgTAP/DB e a suíte completa
-passarem no Supabase local real, seguidos de revisão dos tipos gerados.
+O gate W1B está aprovado: o reset reproduziu as migrations W0/W1A/W1B do zero,
+os tipos foram gerados contra o schema local real, e schema lint, pgTAP, unit,
+E2E e a suíte completa passaram. A revisão estática também confirmou sessão SDK
+oficial, projeção fail-closed, bootstrap e convites restritos, RLS/grants mínimos
+e ausência de credenciais, bypasses ou tokens brutos persistidos/logados.
