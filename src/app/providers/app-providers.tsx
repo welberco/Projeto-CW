@@ -1,16 +1,18 @@
 import { QueryClientProvider, type QueryClient } from '@tanstack/react-query'
 import type { ReactNode } from 'react'
-import { AuthProvider } from '@/app/auth/auth-context'
+import { SessionProvider } from '@/app/auth/auth-context'
 import {
   RuntimeIdentityContext,
   type RuntimeIdentity,
 } from '@/app/providers/runtime-identity'
 import type { AuthGateway } from '@/infrastructure/supabase/auth-gateway'
+import type { SessionRouterCoordinator } from '@/app/query/session-cache-coordinator'
 
 interface AppProvidersProps extends RuntimeIdentity {
   children: ReactNode
   queryClient: QueryClient
   authGateway: AuthGateway
+  routerCoordinator: SessionRouterCoordinator
 }
 
 export function AppProviders({
@@ -19,11 +21,18 @@ export function AppProviders({
   clientCorrelationId,
   release,
   authGateway,
+  routerCoordinator,
 }: AppProvidersProps) {
   return (
     <RuntimeIdentityContext.Provider value={{ clientCorrelationId, release }}>
       <QueryClientProvider client={queryClient}>
-        <AuthProvider gateway={authGateway}>{children}</AuthProvider>
+        <SessionProvider
+          gateway={authGateway}
+          queryClient={queryClient}
+          routerCoordinator={routerCoordinator}
+        >
+          {children}
+        </SessionProvider>
       </QueryClientProvider>
     </RuntimeIdentityContext.Provider>
   )

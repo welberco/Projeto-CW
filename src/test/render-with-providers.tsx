@@ -8,11 +8,16 @@ import type { AuthGateway } from '@/infrastructure/supabase/auth-gateway'
 const testCorrelationId = 'correlation-test' as ClientCorrelationId
 
 const testAuthGateway: AuthGateway = {
-  getAccessState: () => Promise.resolve({ status: 'anonymous' }),
-  signIn: () => Promise.resolve({ status: 'anonymous' }),
+  resolveSession: () => Promise.resolve({ status: 'unauthenticated' }),
+  signIn: () => Promise.resolve(),
   signOut: () => Promise.resolve(),
   acceptInvitation: () => Promise.resolve(),
   onAuthChange: () => () => undefined,
+}
+
+const testRouterCoordinator = {
+  navigateToLogin: () => undefined,
+  revalidate: () => undefined,
 }
 
 export function renderWithProviders(
@@ -34,6 +39,7 @@ export function renderWithProviders(
         authGateway={testAuthGateway}
         clientCorrelationId={testCorrelationId}
         queryClient={queryClient}
+        routerCoordinator={testRouterCoordinator}
         release={{ environment: 'test', releaseId: 'w0b-test' }}
       >
         {ui}
@@ -57,6 +63,7 @@ export function renderWithAuthGateway(
       authGateway={authGateway}
       clientCorrelationId={testCorrelationId}
       queryClient={queryClient}
+      routerCoordinator={testRouterCoordinator}
       release={{ environment: 'test', releaseId: 'w1b-test' }}
     >
       {ui}

@@ -22,14 +22,13 @@ describe('app router', () => {
     expect(screen.getByText(/Correlação local, não autoritativa/)).toBeVisible()
   })
 
-  it('treats tenantRef as an opaque route selector', async () => {
+  it('fails closed for an invalid tenant route selector', async () => {
     renderRoute('/e/opaque-ref_123')
 
     expect(
-      await screen.findByRole('heading', { name: 'Espaço de empreendimento' }),
+      await screen.findByRole('heading', { name: 'Autenticação necessária' }),
     ).toBeInTheDocument()
-    expect(screen.getByText('opaque-ref_123')).toBeVisible()
-    expect(screen.getByText(/não cria tenant, membership ou autoridade/)).toBeVisible()
+    expect(screen.queryByText('opaque-ref_123')).not.toBeInTheDocument()
   })
 
   it('renders the platform boundary without platform functionality', async () => {

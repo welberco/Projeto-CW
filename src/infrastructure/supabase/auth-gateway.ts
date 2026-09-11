@@ -1,16 +1,26 @@
 import type { AppSupabaseClient } from '@/infrastructure/supabase/client'
-import {
-  projectAuthAccess,
-  type AuthAccessState,
-} from '@/shared/auth/auth-projection'
+import type { AuthChangeEvent } from '@supabase/supabase-js'
 import { AppError } from '@/shared/errors/app-error'
+import {
+  parseTenantRef,
+  projectTenantContextRow,
+  type TenantContextResolution,
+  type TenantContextRow,
+} from '@/shared/session/tenant-context'
+
+interface TenantContextRpcClient {
+  rpc: (
+    name: 'resolve_my_tenant_context',
+    args: { target_tenant_ref?: string },
+  ) => Promise<{ data: TenantContextRow[] | null; error: unknown }>
+}
 
 export interface AuthGateway {
-  getAccessState: () => Promise<AuthAccessState>
-  signIn: (email: string, password: string) => Promise<AuthAccessState>
+  resolveSession: (targetTenantRef?: string | null) => Promise<TenantContextResolution>
+  signIn: (email: string, password: string) => Promise<void>
   signOut: () => Promise<void>
   acceptInvitation: (token: string, correlationId: string) => Promise<void>
-  onAuthChange: (listener: () => void) => () => void
+  onAuthChange: (listener: (event: AuthChangeEvent) => void) => () => void
 }
 
 function safeAuthError(code: string, category: 'unauthenticated' | 'unavailable') {
@@ -24,99 +34,53 @@ function safeAuthError(code: string, category: 'unauthenticated' | 'unavailable'
   })
 }
 
-async function loadAccessState(
+async function resolveSession(
   client: AppSupabaseClient,
-): Promise<AuthAccessState> {
+  targetTenantRef?: string | null,
+): Promise<TenantContextResolution> {
   const { data: sessionData, error: sessionError } = await client.auth.getSession()
 
   if (sessionError !== null) {
     throw safeAuthError('AUTH_SESSION_UNAVAILABLE', 'unavailable')
   }
 
-  const userId = sessionData.session?.user.id
-  if (userId === undefined) {
-    return { status: 'anonymous' }
+  const principalId = sessionData.session?.user.id
+  if (principalId === undefined) return { status: 'unauthenticated' }
+
+  let normalizedTenantRef: string | null = null
+  if (targetTenantRef !== undefined && targetTenantRef !== null) {
+    normalizedTenantRef = parseTenantRef(targetTenantRef)
+    if (normalizedTenantRef === null) {
+      return { status: 'tenant_context_unavailable', principalId }
+    }
   }
 
-  const { data: appUser, error: appUserError } = await client
-    .from('app_users')
-    .select('status')
-    .eq('id', userId)
-    .maybeSingle()
+  const resolverArguments =
+    normalizedTenantRef === null
+      ? {}
+      : { target_tenant_ref: normalizedTenantRef }
+  const contextClient = client as unknown as TenantContextRpcClient
+  const { data, error } = await contextClient.rpc(
+    'resolve_my_tenant_context',
+    resolverArguments,
+  )
 
-  if (appUserError !== null) {
-    throw safeAuthError('AUTH_PROJECTION_UNAVAILABLE', 'unavailable')
+  if (error !== null || data?.[0] === undefined) {
+    throw safeAuthError('TENANT_CONTEXT_UNAVAILABLE', 'unavailable')
   }
 
-  if (appUser === null) {
-    return projectAuthAccess({
-      userId,
-      appUserStatus: null,
-      membershipStatus: null,
-      tenantAvailable: false,
-      maintenanceEnabled: false,
-    })
-  }
-
-  const { data: memberships, error: membershipError } = await client
-    .from('tenant_memberships')
-    .select('tenant_id,status')
-    .eq('user_id', userId)
-    .in('status', ['active', 'blocked'])
-    .limit(1)
-
-  if (membershipError !== null) {
-    throw safeAuthError('AUTH_PROJECTION_UNAVAILABLE', 'unavailable')
-  }
-
-  const membership = memberships[0]
-  if (membership === undefined || membership.status !== 'active') {
-    return projectAuthAccess({
-      userId,
-      appUserStatus: appUser.status,
-      membershipStatus: membership?.status ?? null,
-      tenantAvailable: false,
-      maintenanceEnabled: false,
-    })
-  }
-
-  const [{ data: tenant, error: tenantError }, { data: entitlement, error: entitlementError }] =
-    await Promise.all([
-      client
-        .from('tenants')
-        .select('id')
-        .eq('id', membership.tenant_id)
-        .maybeSingle(),
-      client
-        .from('tenant_entitlements')
-        .select('enabled')
-        .eq('tenant_id', membership.tenant_id)
-        .eq('module_key', 'maintenance')
-        .maybeSingle(),
-    ])
-
-  if (tenantError !== null || entitlementError !== null) {
-    throw safeAuthError('AUTH_PROJECTION_UNAVAILABLE', 'unavailable')
-  }
-
-  return projectAuthAccess({
-    userId,
-    appUserStatus: appUser.status,
-    membershipStatus: membership.status,
-    tenantAvailable: tenant !== null,
-    maintenanceEnabled: entitlement?.enabled === true,
-  })
+  return projectTenantContextRow(data[0])
 }
 
 export function createAuthGateway(client: AppSupabaseClient): AuthGateway {
   return {
-    getAccessState: () => loadAccessState(client),
+    resolveSession: (targetTenantRef) =>
+      resolveSession(client, targetTenantRef),
     async signIn(email, password) {
       const { error } = await client.auth.signInWithPassword({ email, password })
       if (error !== null) {
         throw safeAuthError('AUTH_SIGN_IN_FAILED', 'unauthenticated')
       }
-      return loadAccessState(client)
     },
     async signOut() {
       const { error } = await client.auth.signOut()
@@ -138,8 +102,8 @@ export function createAuthGateway(client: AppSupabaseClient): AuthGateway {
       }
     },
     onAuthChange(listener) {
-      const { data } = client.auth.onAuthStateChange(() => {
-        queueMicrotask(listener)
+      const { data } = client.auth.onAuthStateChange((event) => {
+        queueMicrotask(() => listener(event))
       })
       return () => data.subscription.unsubscribe()
     },

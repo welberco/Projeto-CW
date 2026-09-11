@@ -25,7 +25,7 @@ export function AppShell() {
           </Link>
           <div className="flex items-center gap-3">
             <Link className="text-sm font-medium text-muted-foreground hover:text-foreground" to="/login">Acesso</Link>
-            {state.status === 'anonymous' || state.status === 'loading' ? null : (
+            {state.status === 'unauthenticated' || state.status === 'booting' ? null : (
               <button className="text-sm font-medium text-muted-foreground hover:text-foreground" onClick={() => void signOut()} type="button">Sair</button>
             )}
           </div>

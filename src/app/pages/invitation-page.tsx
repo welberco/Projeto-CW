@@ -16,11 +16,11 @@ export function InvitationPage() {
     return <StatePanel description="O convite está ausente ou não pode ser utilizado." title="Convite indisponível" />
   }
 
-  if (state.status === 'loading') {
+  if (state.status === 'booting') {
     return <StatePanel description="Verificando sua identidade." live="polite" title="Carregando convite" />
   }
 
-  if (state.status === 'anonymous') {
+  if (state.status === 'unauthenticated') {
     return (
       <StatePanel
         action={<Button asChild><Link to="/login">Entrar</Link></Button>}
@@ -30,7 +30,11 @@ export function InvitationPage() {
     )
   }
 
-  if (state.status !== 'authenticated' && state.status !== 'no_access') {
+  if (
+    state.status === 'error' ||
+    state.status === 'profile_missing' ||
+    state.status === 'principal_unavailable'
+  ) {
     return <StatePanel description="Este convite não está disponível para esta conta." title="Convite indisponível" />
   }
 

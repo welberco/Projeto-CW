@@ -9,20 +9,20 @@ test('renders the V2 technical shell at the root route', async ({ page }) => {
   await expect(page.getByText('CW ERP V2')).toBeVisible()
 })
 
-test('keeps the tenant route opaque across navigation and refresh', async ({
+test('keeps an unauthenticated tenant deep link fail-closed across refresh', async ({
   page,
 }) => {
   await page.goto('/')
   await page.goto('/e/opaque-ref_123')
 
   await expect(
-    page.getByRole('heading', { name: 'Espaço de empreendimento' }),
+    page.getByRole('heading', { name: 'Autenticação necessária' }),
   ).toBeVisible()
-  await expect(page.getByText('opaque-ref_123')).toBeVisible()
+  await expect(page.getByText('opaque-ref_123')).not.toBeVisible()
 
   await page.reload()
   await expect(
-    page.getByRole('heading', { name: 'Espaço de empreendimento' }),
+    page.getByRole('heading', { name: 'Autenticação necessária' }),
   ).toBeVisible()
 
   await page.goBack()
@@ -31,7 +31,9 @@ test('keeps the tenant route opaque across navigation and refresh', async ({
   ).toBeVisible()
 
   await page.goForward()
-  await expect(page.getByText('opaque-ref_123')).toBeVisible()
+  await expect(
+    page.getByRole('heading', { name: 'Autenticação necessária' }),
+  ).toBeVisible()
 })
 
 test('renders the platform boundary', async ({ page }) => {

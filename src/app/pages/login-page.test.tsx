@@ -4,7 +4,7 @@ import { LoginPage } from '@/app/pages/login-page'
 import { renderWithAuthGateway } from '@/test/render-with-providers'
 
 const failingGateway = {
-  getAccessState: () => Promise.resolve({ status: 'anonymous' }),
+  resolveSession: () => Promise.resolve({ status: 'unauthenticated' } as const),
   signIn: () => Promise.reject(new Error('provider detail and account existence')),
   signOut: () => Promise.resolve(),
   acceptInvitation: () => Promise.resolve(),
@@ -40,8 +40,17 @@ describe('login page', () => {
     const signOut = vi.fn(() => Promise.resolve())
     const authenticatedGateway = {
       ...failingGateway,
-      getAccessState: () =>
-        Promise.resolve({ status: 'authenticated', userId: 'user-1' } as const),
+      resolveSession: () => Promise.resolve({
+        status: 'ready',
+        context: {
+          principalId: 'user-1',
+          tenantId: 'tenant-1',
+          tenantRef: '34000000-0000-4000-8000-000000000001',
+          tenantDisplayName: 'Tenant 1',
+          membershipId: 'membership-1',
+          membershipVersion: 1,
+        },
+      } as const),
       signOut,
     }
 

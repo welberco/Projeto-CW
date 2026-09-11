@@ -29,6 +29,10 @@ export function bootstrapApplication(
     const router = createAppRouter()
     const supabaseClient = createAppSupabaseClient(config)
     const authGateway = createAuthGateway(supabaseClient)
+    const routerCoordinator = {
+      navigateToLogin: () => router.navigate('/login', { replace: true }),
+      revalidate: () => router.revalidate(),
+    }
 
     root.render(
       <StrictMode>
@@ -37,6 +41,7 @@ export function bootstrapApplication(
           queryClient={queryClient}
           release={release}
           authGateway={authGateway}
+          routerCoordinator={routerCoordinator}
         >
           <RouterProvider router={router} />
         </AppProviders>

@@ -5,9 +5,12 @@ import { StatePanel } from '@/shared/ui/state-panel'
 
 const unavailableMessages: Record<string, string> = {
   profile_missing: 'Sua identidade ainda não está disponível para acesso.',
-  blocked: 'Seu acesso está indisponível. Procure o suporte responsável.',
-  inactive: 'Seu acesso está indisponível. Procure o suporte responsável.',
-  no_access: 'Não há acesso operacional disponível para esta conta.',
+  principal_unavailable: 'Seu acesso está indisponível. Procure o suporte responsável.',
+  no_membership: 'Não há vínculo operacional disponível para esta conta.',
+  membership_unavailable: 'Seu vínculo operacional está indisponível.',
+  tenant_unavailable: 'O empreendimento está indisponível no momento.',
+  feature_unavailable: 'O módulo de Manutenção não está disponível.',
+  tenant_context_unavailable: 'O contexto solicitado não está disponível.',
   error: 'Não foi possível verificar o acesso agora. Tente novamente.',
 }
 
@@ -28,11 +31,11 @@ export function LoginPage() {
     }
   }
 
-  if (state.status === 'loading') {
+  if (state.status === 'booting') {
     return <StatePanel description="Verificando sua sessão com segurança." live="polite" title="Carregando acesso" />
   }
 
-  if (state.status === 'authenticated') {
+  if (state.status === 'ready') {
     return (
       <StatePanel
         action={<Button onClick={() => void signOut()} variant="secondary">Sair</Button>}
@@ -42,7 +45,7 @@ export function LoginPage() {
     )
   }
 
-  if (state.status !== 'anonymous') {
+  if (state.status !== 'unauthenticated') {
     return (
       <StatePanel
         action={<Button onClick={() => void signOut()} variant="secondary">Encerrar sessão</Button>}
