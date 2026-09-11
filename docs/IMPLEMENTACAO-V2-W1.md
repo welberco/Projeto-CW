@@ -16,9 +16,10 @@ W1C_IMPLEMENTATION_AUTHORED = YES
 W1C_SESSION_TENANT_CONTEXT_READY = YES
 W1D_IMPLEMENTATION_AUTHORED = YES
 W1D_AUTHENTICATED_ROUTES_READY = YES
-AUTH_READY = NO
-TENANT_READY = NO
-IDENTITY_TENANT_READY = NO
+W1E_SECURITY_HARDENING_READY = YES
+AUTH_READY = YES
+TENANT_READY = YES
+IDENTITY_TENANT_READY = YES
 ```
 
 `W1A_DATA_MODEL_READY` está aprovado pelas migrations reproduzíveis, execução
@@ -618,4 +619,134 @@ W1D_AUTHENTICATED_ROUTES_READY = YES
 AUTH_READY = NO
 TENANT_READY = NO
 IDENTITY_TENANT_READY = NO
+```
+
+## W1E — hardening de segurança e fechamento de Identity/Tenant
+
+### Objetivo e superfícies auditadas
+
+A W1E conclui a revisão adversarial do bloco W1A–W1D sem iniciar autorização
+granular W2 ou qualquer módulo funcional. Foram revisados diretamente:
+
+- migrations, constraints, índices, triggers, grants, policies e owners de
+  `app_users`, `tenants`, `tenant_memberships`, `tenant_invitations`,
+  `tenant_entitlements`, `audit_events` e `platform_bootstrap_state`;
+- `private.is_active_principal()`, `private.can_access_tenant(uuid)`, o resolver
+  `resolve_my_tenant_context(uuid)` e os commands de bootstrap/convite;
+- `AuthGateway`, `SessionProvider`, máquina de estados, boundary tenant, query
+  keys e cleanup do QueryClient;
+- configuração Auth local, arquivos versionados e referências a credenciais
+  privilegiadas.
+
+A auditoria confirmou `search_path` vazio nas funções privilegiadas, referências
+qualificadas, owners não atribuídos a roles cliente, grants mínimos, ausência de
+`PUBLIC EXECUTE`, RLS nas seis tabelas públicas W1 e zero mutation grant direto
+para `authenticated`. O `tenantRef` permanece somente target opaco; ator e
+contexto continuam derivados de `auth.uid()` e dos fatos atuais do banco.
+
+### Findings e correções
+
+Não foi encontrada vulnerabilidade de produção que exigisse migration ou
+alteração das boundaries W1A–W1D. Foram encontradas três lacunas de prova:
+
+1. faltava uma suíte DB consolidada para owners/search path/grants, stale JWT,
+   payload de Audit e a separação entre `service_role` e aceite autenticado;
+2. faltava comprovar no provider a limpeza de cache ao mudar a versão da
+   membership e quando revalidação retorna principal, membership, tenant ou
+   sessão indisponível;
+3. o teste assíncrono da boundary podia observar o primeiro `booting` antes de
+   registrar a callback da resolução target-aware, gerando falha intermitente de
+   teste sem falha correspondente na produção.
+
+A suíte `w1e_identity_tenant_hardening.sql`, o harness DB e os testes do
+`SessionProvider` foram ampliados para cobrir as duas primeiras lacunas. O teste
+de rotas passou a aguardar
+deterministicamente a criação da requisição pendente antes de resolvê-la, sem
+sleep, retry permissivo ou relaxamento da asserção. Após o ajuste, o arquivo de
+rotas passou 20 execuções consecutivas, 21/21 em cada execução.
+
+### AUTH-03 e estado mutável
+
+O pgTAP W1E mantém o mesmo `request.jwt.claim.sub` enquanto altera os fatos
+persistidos e comprova que:
+
+- `app_user` bloqueado ou inativo perde resolver e acesso tenant por RLS;
+- membership bloqueada ou revogada perde resolver e acesso tenant por RLS;
+- tenant suspenso ou inativo perde resolver e visibilidade por RLS;
+- entitlement `maintenance` desabilitado impede contexto operacional válido;
+- `tenantRef` de Tenant B e referência inexistente retornam o mesmo estado
+  externo sem projetar identidade tenant;
+- metadata JWT forjada para tenant/role não amplia acesso;
+- nenhuma atualização ou refresh do JWT é necessária para aplicar a revogação.
+
+Isso prova a autoridade dos fatos atuais do banco para a superfície W1. A sessão
+Auth válida identifica o principal, mas não conserva autorização mutável antiga.
+
+### Bootstrap, invitations e Audit
+
+O hardening confirmou que bootstrap permanece one-shot, transacional e protegido
+por advisory lock; bootstrap e administração de convites têm exatamente a
+superfície operacional `service_role`, enquanto aceite é exclusivo de
+`authenticated` e explicitamente negado a `service_role`.
+
+Convites continuam vinculados à identidade/e-mail confirmado, com e-mail
+normalizado em hash, token bruto retornado uma vez e somente SHA-256 persistido.
+Os estados pending/accepted/revoked/expired, conflito de membership operacional,
+locks e unicidade existentes permanecem inalterados.
+
+`audit_events` continua sem leitura ou escrita direta de browser, com triggers
+que rejeitam UPDATE, DELETE e TRUNCATE inclusive por caminho privilegiado. A
+suíte verifica ausência do token bruto e de campos conhecidos de senha, JWT,
+`service_role` ou segredo no metadata W1. `correlation_id` permanece somente
+observabilidade.
+
+### Configuração e segredos
+
+A configuração local validada na W1D foi preservada:
+
+```toml
+[auth]
+enable_signup = false
+
+[auth.email]
+enable_signup = true
+```
+
+Não há tela ou fluxo público de signup. Apenas `.env.example` está versionado;
+`.env.local` permanece ignorado. Nenhuma chave, senha, JWT ou segredo foi
+adicionado. O runner que recebe `SUPABASE_SERVICE_ROLE_KEY` rejeita hosts não
+locais, não persiste sessão e permanece fora do bundle/browser.
+
+### Testes e validações finais
+
+| Validação | Resultado |
+| --- | --- |
+| `npm run test:v2:unit` | `PASS`: 12 arquivos, 65/65 testes |
+| `npm run test:v2:db` | `PASS`: schema lint, 5 arquivos pgTAP, 160/160 testes e `DB_SMOKE_OK` |
+| `npm run test:v2:e2e` | `PASS`: 6/6 testes Chromium |
+| `npm run typecheck` | `PASS` |
+| `npm run lint` | `PASS` |
+| `npm run build` | `PASS`: 246 módulos; aviso não bloqueante de chunk acima de 500 kB |
+| `git diff --check` | `PASS` |
+
+O DB smoke foi executado somente contra o Supabase local. Nenhum projeto remoto,
+`supabase link`, `db push` ou migration repair foi usado.
+
+### Gates finais da W1
+
+As invariantes e validações obrigatórias da W1E estão comprovadas. Identity e
+Tenant podem servir como fundação para uma etapa posterior, mas esta execução
+não inicia nem implementa W2.
+
+```text
+W1A_DATA_MODEL_READY = YES
+W1B_AUTH_BOOTSTRAP_INVITATIONS_READY = YES
+W1C_IMPLEMENTATION_AUTHORED = YES
+W1C_SESSION_TENANT_CONTEXT_READY = YES
+W1D_IMPLEMENTATION_AUTHORED = YES
+W1D_AUTHENTICATED_ROUTES_READY = YES
+W1E_SECURITY_HARDENING_READY = YES
+AUTH_READY = YES
+TENANT_READY = YES
+IDENTITY_TENANT_READY = YES
 ```
