@@ -14,6 +14,8 @@ W1A_DATA_MODEL_READY = YES
 W1B_AUTH_BOOTSTRAP_INVITATIONS_READY = YES
 W1C_IMPLEMENTATION_AUTHORED = YES
 W1C_SESSION_TENANT_CONTEXT_READY = YES
+W1D_IMPLEMENTATION_AUTHORED = YES
+W1D_AUTHENTICATED_ROUTES_READY = NO
 AUTH_READY = NO
 TENANT_READY = NO
 IDENTITY_TENANT_READY = NO
@@ -22,7 +24,7 @@ IDENTITY_TENANT_READY = NO
 `W1A_DATA_MODEL_READY` está aprovado pelas migrations reproduzíveis, execução
 real no Supabase local, tipos regenerados e testes DB/RLS aprovados. Os gates
 de Auth, Tenant e Identity/Tenant continuam pendentes do fechamento das etapas
-W1C–W1E.
+restantes da W1 e da validação autenticada real da W1D.
 
 ## W1A — modelo físico, migrations e RLS base
 
@@ -441,4 +443,156 @@ TENANT_READY = NO
 IDENTITY_TENANT_READY = NO
 ```
 
-W1D, W1E e W2 não foram iniciadas.
+Naquele fechamento, W1D, W1E e W2 ainda não haviam sido iniciadas. A execução da
+W1D está registrada a seguir; W1E e W2 permanecem não iniciadas.
+
+## W1D — rotas, UI e fluxos E2E de Identity + Tenant
+
+### Objetivo e recorte
+
+A W1D implementa a navegação autenticada mínima da V2 sobre o resolver
+autoritativo entregue na W1C. A URL continua sendo apenas navegação: nenhuma
+página, menu ou helper transforma `tenantRef` em autoridade e nenhum dado
+tenant-owned é renderizado antes da resolução da sessão e da validação do
+seletor da rota.
+
+Não houve alteração de migration, contrato SQL, RLS ou Supabase. Não foram
+implementados CompanySwitcher, seleção/listagem de tenants, permissões W2,
+módulos de negócio, Global Admin operacional ou persistência autoritativa no
+browser.
+
+### Rotas resultantes
+
+| Rota | Comportamento W1D |
+| --- | --- |
+| `/` | aguarda sessão; redireciona sem sessão para `/login` e contexto válido para a rota tenant canônica |
+| `/login` | formulário sem signup público; só redireciona depois de `ready` |
+| `/convite` | preserva o fluxo seguro W1B e o token somente no fragmento |
+| `/e/:tenantRef` | passa pela boundary tenant e redireciona para `dashboard` somente após validação |
+| `/e/:tenantRef/dashboard` | placeholder mínimo de Visão Geral dentro do shell autenticado |
+| `/e/:tenantRef/minha-conta` | placeholder mínimo da rota obrigatória, sem antecipar sua edição funcional |
+| `/e/:tenantRef/*` | not-found seguro, renderizado somente dentro de contexto validado |
+| `/plataforma/*` | namespace separado e protegido, sem implementar autoridade ou funções de Global Admin |
+| `*` | not-found público seguro |
+
+A função pura `canonicalTenantPath` deriva
+`/e/{tenantRef-autoritativo}/dashboard` ou `/minha-conta` somente de UUID v4
+válido. Login e raiz usam exclusivamente o `tenantRef` retornado pelo contexto
+`ready`; usuário comum não escolhe empreendimento.
+
+### Boundary e fail-closed
+
+`TenantRouteBoundary` centraliza a proteção de toda a árvore `/e/:tenantRef/*`.
+O fluxo é:
+
+```text
+resolução inicial da sessão
+→ contexto ready sem renderizar a página tenant
+→ resolver W1C chamado com tenantRef da URL
+→ correspondência URL versus tenantRef autoritativo
+→ shell e página filha
+```
+
+Uma validação em voo é identificada por geração de contexto e seletor da rota.
+Isso impede corrida entre o bootstrap sem target e a validação do deep link,
+ignora respostas obsoletas quando a URL muda e conserva o conteúdo bloqueado
+durante refresh/revalidação.
+
+Mismatch, UUID inválido, tenant inexistente e tenant não autorizado convergem
+para `Contexto indisponível`, sem ecoar o UUID, confirmar existência ou montar o
+shell. Os estados agregados já definidos na W1C são apresentados como:
+
+- identidade indisponível;
+- usuário bloqueado ou inativo;
+- vínculo não encontrado;
+- vínculo bloqueado, inativo ou revogado;
+- empreendimento suspenso, inativo ou indisponível;
+- módulo indisponível;
+- contexto indisponível;
+- falha segura genérica.
+
+Esses textos não alteram o contrato seguro do resolver nem expõem a causa
+persistida além da projeção autorizada.
+
+### Shell, login, refresh e logout
+
+O shell autenticado exibe somente marca CW ERP, nome de exibição do
+empreendimento autoritativo, navegação mínima para Visão Geral e Minha Conta e
+ação Sair. O layout é responsivo: navegação horizontal em viewport estreito e
+lateral a partir do breakpoint de desktop. Não há menus de módulos ainda não
+implementados.
+
+Login mantém a rota atual enquanto a sessão/contexto está em `booting`. Após
+`ready`, navega com `replace` para a rota canônica. Deep link e refresh repetem a
+validação target-aware antes de montar conteúdo. Back/forward usam URLs reais e
+não dependem de tela selecionada em memória.
+
+Logout preserva a ordem da W1C: bloqueia o estado visual, cancela queries, limpa
+o QueryClient, chama `signOut` e substitui a rota por `/login`. O teste de
+integração também volta no histórico após logout e comprova que a página tenant
+não reaparece.
+
+### Testes W1D
+
+Foram adicionados testes unitários/integração de React Router + SessionProvider
+para:
+
+- rota canônica e rejeição de referência inválida;
+- raiz e login sem sessão;
+- login válido e espera pelo contexto pós-auth;
+- deep link sem sessão;
+- bloqueio de conteúdo durante a validação target-aware;
+- index tenant, Dashboard e Minha Conta;
+- mismatch sem enumeração;
+- todos os estados fail-closed da W1C;
+- namespace de plataforma protegido;
+- not-found público e tenant;
+- logout com limpeza de cache e back sem restauração de conteúdo;
+- login sem signup e convite inválido.
+
+O Playwright cobre em browser real a raiz/login sem sessão, deep link tenant
+fail-closed com refresh/back/forward, namespace de plataforma protegido,
+not-found público, ausência de signup e convite inválido.
+
+Os fluxos autenticados em browser real não inventam credenciais nem criam um
+bypass de teste. Login autenticado, refresh com sessão real, mismatch resolvido
+pelo RPC real e logout/back com Auth real permanecem como validação manual/local
+posterior com Supabase descartável e usuários seed controlados. A cobertura
+automatizada correspondente está preparada na camada de integração com gateway
+substituível, mas não prova Auth/RLS reais.
+
+### Validações e segurança
+
+Validações executadas nesta implementação:
+
+| Validação | Resultado |
+| --- | --- |
+| `npm run typecheck` | `PASS` |
+| `npm run lint` | `PASS` |
+| `npm run test:v2:unit` | `PASS`: 12 arquivos, 60/60 testes |
+| `npm run test:v2:e2e` | `PASS`: 6/6 testes Chromium |
+| `npm run build` | `PASS`; aviso não bloqueante de chunk acima de 500 kB |
+| `git diff --check` | `PASS` |
+
+Revisão estática confirmou que as páginas não importam a infraestrutura
+Supabase diretamente; não há `service_role`, segredo, bypass flag, listagem
+cross-tenant, CompanySwitcher ou uso de storage do browser como autoridade. As
+query keys tenant-owned e o cleanup de sessão da W1C permanecem inalterados.
+
+### Gates W1D
+
+A implementação estática e seus testes locais estão authored. O gate de rotas
+autenticadas permanece fechado até a validação real descrita acima; isso não
+promove a W1 completa e não inicia W1E ou W2.
+
+```text
+W1A_DATA_MODEL_READY = YES
+W1B_AUTH_BOOTSTRAP_INVITATIONS_READY = YES
+W1C_IMPLEMENTATION_AUTHORED = YES
+W1C_SESSION_TENANT_CONTEXT_READY = YES
+W1D_IMPLEMENTATION_AUTHORED = YES
+W1D_AUTHENTICATED_ROUTES_READY = NO
+AUTH_READY = NO
+TENANT_READY = NO
+IDENTITY_TENANT_READY = NO
+```
