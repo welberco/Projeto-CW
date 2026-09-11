@@ -377,6 +377,18 @@ export type Database = {
         }
         Returns: undefined
       }
+      resolve_my_tenant_context: {
+        Args: { target_tenant_ref?: string }
+        Returns: {
+          context_status: string
+          membership_id: string
+          membership_version: number
+          principal_id: string
+          tenant_display_name: string
+          tenant_id: string
+          tenant_ref: string
+        }[]
+      }
     }
     Enums: {
       [_ in never]: never

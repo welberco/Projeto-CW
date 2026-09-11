@@ -16,6 +16,7 @@
     "test:v2:watch": "vitest --config vitest.config.ts",
     "test:v2:e2e": "playwright test --config playwright.config.ts",
     "test:v2:db": "node scripts/supabase-local.mjs smoke",
+    "test:v2:db:w1c:embedded": "node scripts/w1c-embedded-migration-check.mjs",
     "test:v2:all": "npm run test:v2:unit && npm run test:v2:db && npm run test:v2:e2e",
     "db:start": "node scripts/supabase-local.mjs start",
     "db:stop": "node scripts/supabase-local.mjs stop",
