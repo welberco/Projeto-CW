@@ -13,7 +13,7 @@ W1A_IMPLEMENTATION_AUTHORED = YES
 W1A_DATA_MODEL_READY = YES
 W1B_AUTH_BOOTSTRAP_INVITATIONS_READY = YES
 W1C_IMPLEMENTATION_AUTHORED = YES
-W1C_SESSION_TENANT_CONTEXT_READY = NO
+W1C_SESSION_TENANT_CONTEXT_READY = YES
 AUTH_READY = NO
 TENANT_READY = NO
 IDENTITY_TENANT_READY = NO
@@ -406,10 +406,15 @@ tenant suspenso, entitlement desabilitado e revogação com JWT ainda válido.
 | `npm run build` | `PASS`: 240 módulos; aviso não bloqueante de chunk acima de 500 kB |
 | `npm run test:v2:e2e` | `PASS`: 6/6 testes Chromium, incluindo deep link tenant sem sessão fail-closed após refresh/back/forward |
 | `git diff --check` | `PASS` |
-| `npm run db:reset` | `BLOCKED`: Docker compatível não está instalado ou acessível nesta máquina |
-| `npm run db:types` | `BLOCKED`: mesmo bloqueio; `database.types.ts` foi preservado sem edição manual |
-| `npm run test:v2:db` | `BLOCKED`: pgTAP real e schema lint dependem do Supabase local |
-| `npm run test:v2:all` | `BLOCKED` em `test:v2:db` depois de unitários 43/43; E2E foi executado separadamente e passou 6/6 |
+| `npm run db:reset` | `PASS`: migrations W0, W1A, W1B e W1C reproduzidas do zero no Supabase local |
+| `npm run db:types` | `PASS`: `database.types.ts` regenerado pelo Supabase CLI local; inclui o contrato de `resolve_my_tenant_context` |
+| `npm run test:v2:db` | `PASS`: schema lint e 4 arquivos pgTAP, 121/121 testes; `DB_SMOKE_OK` |
+| `npm run test:v2:all` | `PASS`: unitários 43/43, banco 121/121 e E2E Chromium 6/6 |
+
+O primeiro run real de `npm run test:v2:db` revelou somente uso incorreto da
+assertion pgTAP `has_function`: ela já emite resultado TAP e não deve ser
+envolvida por `ok(...)`. O teste W1C foi corrigido para chamá-la diretamente;
+nenhuma migration ou implementação de produção foi alterada.
 
 Nenhum remoto foi acessado, nenhum push foi feito e nenhuma credencial, chave,
 JWT, `service_role`, senha ou tenant persistido em storage do browser foi
@@ -417,34 +422,20 @@ adicionado.
 
 ### Avaliação do gate W1C
 
-A implementação W1C1–W1C4 está authored e todas as validações que não dependem
-de Docker passaram. Não há `PRODUCT/ARCHITECTURE DECISION REQUIRED`.
+A implementação W1C1–W1C4 está authored e as evidências obrigatórias foram
+produzidas no Supabase local: reset from-zero, tipos gerados pelo CLI, schema
+lint, pgTAP, unitários, E2E e suíte completa passaram. A revisão final não
+identificou inconsistência de segurança ou arquitetura, e não há
+`PRODUCT/ARCHITECTURE DECISION REQUIRED`.
 
-O gate permanece fechado porque a evidência obrigatória no Supabase local ainda
-não pôde ser produzida: reset from-zero, geração real de tipos, schema lint e
-pgTAP W1C. Quando um runtime Docker compatível estiver disponível, executar:
-
-```powershell
-npm run db:reset
-npm run db:types
-npm run test:v2:db
-npm run test:v2:unit
-npm run typecheck
-npm run lint
-npm run build
-npm run test:v2:e2e
-npm run test:v2:all
-git diff --check
-```
-
-Somente se essa sequência passar e `database.types.ts` incluir o contrato gerado
-do resolver o gate poderá ser promovido. Até lá:
+O gate interno W1C está aprovado. Isso não promove W1 inteira, nem os gates de
+Auth, Tenant ou Identity/Tenant, que dependem de W1D e W1E.
 
 ```text
 W1A_DATA_MODEL_READY = YES
 W1B_AUTH_BOOTSTRAP_INVITATIONS_READY = YES
 W1C_IMPLEMENTATION_AUTHORED = YES
-W1C_SESSION_TENANT_CONTEXT_READY = NO
+W1C_SESSION_TENANT_CONTEXT_READY = YES
 AUTH_READY = NO
 TENANT_READY = NO
 IDENTITY_TENANT_READY = NO

@@ -3,8 +3,10 @@ begin;
 set local search_path = public, extensions, pg_catalog;
 select no_plan();
 
-select ok(
-  has_function('public', 'resolve_my_tenant_context', array['uuid']),
+select has_function(
+  'public',
+  'resolve_my_tenant_context',
+  array['uuid'],
   'authoritative tenant context resolver exists'
 );
 select ok(
