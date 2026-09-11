@@ -15,7 +15,7 @@ W1B_AUTH_BOOTSTRAP_INVITATIONS_READY = YES
 W1C_IMPLEMENTATION_AUTHORED = YES
 W1C_SESSION_TENANT_CONTEXT_READY = YES
 W1D_IMPLEMENTATION_AUTHORED = YES
-W1D_AUTHENTICATED_ROUTES_READY = NO
+W1D_AUTHENTICATED_ROUTES_READY = YES
 AUTH_READY = NO
 TENANT_READY = NO
 IDENTITY_TENANT_READY = NO
@@ -456,9 +456,22 @@ página, menu ou helper transforma `tenantRef` em autoridade e nenhum dado
 tenant-owned é renderizado antes da resolução da sessão e da validação do
 seletor da rota.
 
-Não houve alteração de migration, contrato SQL, RLS ou Supabase. Não foram
-implementados CompanySwitcher, seleção/listagem de tenants, permissões W2,
-módulos de negócio, Global Admin operacional ou persistência autoritativa no
+Não houve alteração de migration, contrato SQL ou RLS. Não foram implementados
+CompanySwitcher, seleção/listagem de tenants, permissões W2, módulos de negócio,
+Global Admin operacional ou persistência autoritativa no browser.
+
+### Configuração Auth local
+
+O `supabase/config.toml` local foi ajustado para manter dois controles distintos:
+
+- `[auth] enable_signup = false` mantém o cadastro público global desabilitado;
+- `[auth.email] enable_signup = true` habilita apenas o provider de
+  e-mail/senha, necessário para autenticar usuários já provisionados pelo fluxo
+  controlado.
+
+Essa combinação corrige o retorno local `email_provider_disabled` observado
+quando o provider estava desligado, sem criar tela de signup, liberar cadastro
+público, alterar bootstrap/convites, relaxar RLS ou incluir `service_role` no
 browser.
 
 ### Rotas resultantes
@@ -554,12 +567,17 @@ O Playwright cobre em browser real a raiz/login sem sessão, deep link tenant
 fail-closed com refresh/back/forward, namespace de plataforma protegido,
 not-found público, ausência de signup e convite inválido.
 
-Os fluxos autenticados em browser real não inventam credenciais nem criam um
-bypass de teste. Login autenticado, refresh com sessão real, mismatch resolvido
-pelo RPC real e logout/back com Auth real permanecem como validação manual/local
-posterior com Supabase descartável e usuários seed controlados. A cobertura
-automatizada correspondente está preparada na camada de integração com gateway
-substituível, mas não prova Auth/RLS reais.
+Além da automação, a validação manual local contra Supabase descartável, com
+usuário provisionado e sem acesso remoto, confirmou: login real por e-mail/senha,
+redirecionamento canônico para `/e/:tenantRef/dashboard`, nome correto do tenant
+no shell, refresh autenticado, mismatch de `tenantRef` em estado fail-closed sem
+enumeração, logout para `/login` e bloqueio de acesso direto à rota tenant após
+logout.
+
+Houve anteriormente uma ocorrência intermitente no teste `does not render tenant
+content before the route context is validated`. O cenário isolado passou 21/21 e
+a execução completa posterior passou 60/60; não foi reproduzido, portanto não
+houve alteração de produção nem mascaramento por espera arbitrária.
 
 ### Validações e segurança
 
@@ -574,6 +592,12 @@ Validações executadas nesta implementação:
 | `npm run build` | `PASS`; aviso não bloqueante de chunk acima de 500 kB |
 | `git diff --check` | `PASS` |
 
+A execução manual final de `npm run test:v2:all` no ambiente local habilitado
+produziu: Vitest 60/60, schema lint, pgTAP 121/121, `DB_SMOKE_OK` e Playwright
+6/6. Nesta revisão no Codex, `npm run test:v2:db` foi tentado, mas o runtime
+informou `LOCAL_RUNTIME_BLOCKER` porque Docker compatível não está acessível;
+nenhuma configuração foi alterada para contornar esse bloqueio.
+
 Revisão estática confirmou que as páginas não importam a infraestrutura
 Supabase diretamente; não há `service_role`, segredo, bypass flag, listagem
 cross-tenant, CompanySwitcher ou uso de storage do browser como autoridade. As
@@ -581,8 +605,7 @@ query keys tenant-owned e o cleanup de sessão da W1C permanecem inalterados.
 
 ### Gates W1D
 
-A implementação estática e seus testes locais estão authored. O gate de rotas
-autenticadas permanece fechado até a validação real descrita acima; isso não
+A implementação e a validação autenticada real local estão concluídas. Isso não
 promove a W1 completa e não inicia W1E ou W2.
 
 ```text
@@ -591,7 +614,7 @@ W1B_AUTH_BOOTSTRAP_INVITATIONS_READY = YES
 W1C_IMPLEMENTATION_AUTHORED = YES
 W1C_SESSION_TENANT_CONTEXT_READY = YES
 W1D_IMPLEMENTATION_AUTHORED = YES
-W1D_AUTHENTICATED_ROUTES_READY = NO
+W1D_AUTHENTICATED_ROUTES_READY = YES
 AUTH_READY = NO
 TENANT_READY = NO
 IDENTITY_TENANT_READY = NO
