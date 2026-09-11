@@ -1,24 +1,24 @@
 import { expect, test } from '@playwright/test'
 
-test('renders the V2 technical shell at the root route', async ({ page }) => {
+test('redirects the unauthenticated root route to login', async ({ page }) => {
   await page.goto('/')
 
-  await expect(
-    page.getByRole('heading', { name: 'Foundation frontend executável' }),
-  ).toBeVisible()
-  await expect(page.getByText('CW ERP V2')).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Entrar' })).toBeVisible()
+  await expect(page).toHaveURL(/\/login$/)
 })
 
 test('keeps an unauthenticated tenant deep link fail-closed across refresh', async ({
   page,
 }) => {
-  await page.goto('/')
-  await page.goto('/e/opaque-ref_123')
+  const tenantRef = '34000000-0000-4000-8000-000000000001'
+  await page.goto('/login')
+  await page.goto(`/e/${tenantRef}/dashboard`)
 
   await expect(
     page.getByRole('heading', { name: 'Autenticação necessária' }),
   ).toBeVisible()
-  await expect(page.getByText('opaque-ref_123')).not.toBeVisible()
+  await expect(page.getByText(tenantRef)).not.toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Visão Geral' })).not.toBeVisible()
 
   await page.reload()
   await expect(
@@ -26,9 +26,7 @@ test('keeps an unauthenticated tenant deep link fail-closed across refresh', asy
   ).toBeVisible()
 
   await page.goBack()
-  await expect(
-    page.getByRole('heading', { name: 'Foundation frontend executável' }),
-  ).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Entrar' })).toBeVisible()
 
   await page.goForward()
   await expect(
@@ -36,15 +34,13 @@ test('keeps an unauthenticated tenant deep link fail-closed across refresh', asy
   ).toBeVisible()
 })
 
-test('renders the platform boundary', async ({ page }) => {
+test('protects the platform namespace', async ({ page }) => {
   await page.goto('/plataforma')
 
   await expect(
-    page.getByRole('heading', { name: 'Operações de plataforma' }),
+    page.getByRole('heading', { name: 'Autenticação necessária' }),
   ).toBeVisible()
-  await expect(
-    page.getByText(/Nenhuma função de Administrador Global/),
-  ).toBeVisible()
+  await expect(page.getByText(/bypass/)).not.toBeVisible()
 })
 
 test('renders a safe not-found state for an unknown deep link', async ({
@@ -57,7 +53,7 @@ test('renders a safe not-found state for an unknown deep link', async ({
   ).toBeVisible()
 })
 
-test('renders the W1B login route without signup', async ({ page }) => {
+test('renders the login route without signup', async ({ page }) => {
   await page.goto('/login')
 
   await expect(page.getByRole('heading', { name: 'Entrar' })).toBeVisible()
