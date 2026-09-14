@@ -9,7 +9,7 @@ permanece em `docs/IMPLEMENTACAO-V2-W2-PLANO.md`.
 W2_PLAN_COMPLETE = YES
 W2A_AUTHORIZATION_MODEL_READY = YES
 W2B_PROFILES_OVERRIDES_READY = YES
-W2C_AUTHORIZATION_ENGINE_READY = NO
+W2C_AUTHORIZATION_ENGINE_READY = YES
 W2D_AUTHORIZATION_PROJECTION_READY = NO
 W2E_AUTHORIZATION_HARDENING_READY = NO
 AUTHORIZATION_READY = NO
@@ -388,3 +388,149 @@ AUTHORIZATION_READY = NO
 
 Nenhum Supabase remoto, `db push`, `migration repair`, deploy, push, merge ou PR
 faz parte da W2B.
+
+## W2C — authorization engine, commands e antiescalada
+
+### Escopo e decisão autoritativa
+
+A W2C implementa exclusivamente W2-07 e W2-08 do plano aprovado. O evaluator
+privado `private.resolve_effective_scopes(resource_code, action_code)` deriva o
+principal de `auth.uid()` e reconsulta `app_users`, tenant, membership, profile,
+catálogo, baseline, override e entitlement atuais. A decisão usa combinações
+exatas:
+
+```text
+ALLOW exato = override ALLOW
+           ou (sem override e baseline presente)
+DENY exato  = override DENY
+           ou ausência de ALLOW
+PERMIT      = combinação efetiva + entitlement habilitado + alcance do alvo
+```
+
+Scopes são um conjunto sem hierarquia. Um `DENY` substitui somente a combinação
+exata; `ALL_TENANT` significa todo o tenant corrente e nunca cross-tenant. O
+evaluator separa capacidade efetiva de alcance de registro. Como W2C não cria
+Solicitação, OS, Ativo, owner, assignment ou equipe, não existe resolver de
+domínio artificial: os comandos administrativos usam apenas as combinações
+`core.*.*.all_tenant` existentes e validam o tenant real do alvo. `OWN`,
+`ASSIGNED` e `TEAM` permanecem fail-closed para recursos até a wave dona de
+cada entidade publicar seus fatos e resolver dedicado.
+
+`required_entitlement_key` é aplicado tanto ao evaluator quanto aos conjuntos
+prospectivos usados pela antiescalada. Permission com entitlement ausente ou
+desabilitado não é efetiva por baseline nem por override.
+
+### Commands e concorrência
+
+Foram publicados onze entrypoints `SECURITY DEFINER`, executáveis somente por
+`authenticated`:
+
+- criar, renomear, ativar e inativar profile;
+- adicionar ou remover uma permission exata do baseline;
+- atribuir profile à membership;
+- criar/alterar e remover override individual;
+- bloquear, reativar ou revogar membership operacional;
+- convidar usuário e revogar/expirar convite por boundaries autenticadas.
+
+Os comandos não recebem ator, tenant, profile corrente, scopes ou fatos de
+autorização do cliente. Eles derivam o contexto atual, serializam mutações por
+tenant com advisory lock, bloqueiam estado autoritativo, revalidam lifecycle e
+permission e só então alteram dados. Targets usam IDs opacos, sempre são
+restringidos ao tenant corrente e falhas de existência/tenant retornam erro não
+enumerativo. Mutações pontuais exigem `expected_version`; overrides validam as
+versões da membership e da própria exceção.
+
+Convites reutilizam as primitivas W1/W2B restritas a `service_role` depois da
+autorização autenticada. O token plaintext é devolvido uma única vez pelo
+resultado do command; somente SHA-256 é persistido e nenhum Audit recebe o
+token, e-mail plaintext ou segredo.
+
+### Antiescalada e último administrador
+
+Além da permission administrativa do command, toda transição que muda uma
+combinação de não efetiva para efetiva exige simultaneamente que o ator possua
+a mesma combinação exata e que `tenant_delegable = true`. O cálculo compara
+conjuntos antes/depois em assignment de profile, considera remoção de `DENY`,
+valida baseline, overrides e profile de convite, e não usa nome, ranking ou
+papel especial. Assim, autoescalada, escalada indireta e grants não delegáveis
+falham fechados.
+
+Após toda mutação capaz de reduzir autoridade, a transação exige pelo menos uma
+membership ativa com o conjunto administrativo `core.users` + `core.profiles`
+completo e efetivo. A falha `LAST_AUTHORIZATION_ADMIN_REQUIRED` desfaz alteração
+e Audit na mesma transação.
+
+### Segurança, RLS e Audit
+
+Helpers do evaluator e da antiescalada ficam em `private`, sem `EXECUTE` para
+`PUBLIC`, `anon`, `authenticated` ou `service_role`. Todos fixam `search_path`
+vazio, usam referências qualificadas e têm owner não cliente. As boundaries
+públicas concedem somente `EXECUTE` a `authenticated`; tabelas continuam sem
+grants de mutation. Nenhuma policy permissiva, bypass, wildcard, Global Admin,
+`service_role` frontend ou autorização baseada em JWT mutável foi criado.
+
+Cada command efetivo escreve no `audit_events` append-only na mesma transação,
+com ator derivado, tenant, correlation, reason, alvo e versões anterior/nova.
+Falha de versão, autorização, antiescalada ou último administrador não deixa
+mutação nem evento parcial.
+
+### Migrations, types e testes
+
+| Migration | Responsabilidade |
+| --- | --- |
+| `20260914006000_w2c_authorization_evaluator.sql` | AUTH-01, entitlement, helpers de conjuntos prospectivos, delegação exata e detecção do administrador efetivo |
+| `20260914007000_w2c_authorization_commands.sql` | AUTH-02, commands autenticados, locks, expected versions, antiescalada, último administrador e Audit |
+
+`src/infrastructure/supabase/database.types.ts` foi regenerado pelo Supabase CLI
+local. O diff tipado da W2C contém somente as novas funções públicas; helpers
+privados não são projetados.
+
+`supabase/tests/w2c_authorization_engine.sql` contém 57 asserts sobre AUTH-01,
+entitlements, lifecycle atual contra JWT stale, scopes exatos, grants, owners,
+`search_path`, commands, versions, Tenant A/B, autoescalada, escalada indireta,
+permission não delegável, último administrador, Audit e segurança do token.
+
+| Validação | Resultado |
+| --- | --- |
+| `npm run preflight:v2` inicial | `WARN`: Docker não estava visível no sandbox; branch, HEAD, worktree, arquivos e toolchain passaram |
+| `npm run db:start` | `PASS`: Supabase local descartável iniciado sem expor credenciais |
+| `npm run db:reset` | `PASS`: quatorze migrations W0/W1/W2A/W2B/W2C aplicadas do zero |
+| `npm run db:types` | `PASS`: tipos regenerados pelo CLI local após o reset final |
+| schema lint | `PASS`: nenhum erro no schema público |
+| `npm run test:v2:db` | `PASS`: 8 arquivos, W2C 57/57 e total 352/352; `DB_SMOKE_OK` |
+| `npm run test:v2:unit` | `PASS`: 12 arquivos e 65/65 testes |
+| `npm run test:v2:e2e` | `PASS`: 6/6 Chromium |
+| `npm run typecheck` | `PASS` |
+| `npm run lint` | `PASS` |
+| `npm run build` | `PASS`: 246 módulos; aviso preexistente de chunk acima de 500 kB |
+| `git diff --check` | `PASS` |
+| `npm run verify:v2:full` pré-commit | Gates DB, unit, E2E, typecheck, lint, build e diff-check em `PASS`; agregado `WARN` somente pelo worktree da missão ainda dirty |
+
+Durante a construção da suíte, o role autenticado não podia ler fixtures
+temporárias sem grant explícito; as referências foram isoladas numa tabela
+temporária com `SELECT` mínimo. A instalação pgTAP local não oferecia o matcher
+`like(text,text,...)`, substituído por uma asserção regex equivalente. Uma
+fixture de convite expirado tentou inicialmente violar o check histórico
+`expires_at > created_at`; ela passou a representar corretamente um convite
+criado no passado. Por fim, a assinatura de criação de override foi ajustada
+para que ausência de versão anterior seja opcional também nos tipos gerados,
+sem afrouxar a versão obrigatória em updates. Nenhuma correção relaxou regra de
+produção, RLS, grant ou antiescalada.
+
+### Gate W2C e itens deferidos
+
+```text
+W2_PLAN_COMPLETE = YES
+W2A_AUTHORIZATION_MODEL_READY = YES
+W2B_PROFILES_OVERRIDES_READY = YES
+W2C_AUTHORIZATION_ENGINE_READY = YES
+W2D_AUTHORIZATION_PROJECTION_READY = NO
+W2E_AUTHORIZATION_HARDENING_READY = NO
+AUTHORIZATION_READY = NO
+```
+
+Permanecem deferidos para W2D projection self, vetor de revisão, cache,
+generation e provider/guards de UX. W2E permanece responsável pelo hardening
+consolidado, policies/grants finais e matriz adversarial integrada. Recursos e
+RLS funcionais pertencem às waves dos módulos donos dos dados. Nenhum Supabase
+remoto, `db push`, `migration repair`, deploy, push, merge ou PR integra W2C.

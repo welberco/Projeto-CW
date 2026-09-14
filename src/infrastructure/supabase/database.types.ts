@@ -602,6 +602,21 @@ export type Database = {
           tenant_ref: string
         }[]
       }
+      assign_tenant_membership_profile: {
+        Args: {
+          command_reason: string
+          correlation_id?: string
+          expected_membership_version: number
+          target_membership_id: string
+          target_profile_id: string
+        }
+        Returns: {
+          command_correlation_id: string
+          membership_id: string
+          membership_version: number
+          profile_id: string
+        }[]
+      }
       bootstrap_initial_tenant: {
         Args: {
           bootstrap_user_id: string
@@ -611,6 +626,36 @@ export type Database = {
         Returns: {
           tenant_id: string
           tenant_ref: string
+        }[]
+      }
+      change_tenant_membership_status: {
+        Args: {
+          command_reason: string
+          correlation_id?: string
+          expected_membership_version: number
+          target_membership_id: string
+          target_status: string
+        }
+        Returns: {
+          command_correlation_id: string
+          membership_id: string
+          membership_status: string
+          membership_version: number
+        }[]
+      }
+      change_tenant_profile_status: {
+        Args: {
+          command_reason: string
+          correlation_id?: string
+          expected_profile_version: number
+          target_profile_id: string
+          target_status: string
+        }
+        Returns: {
+          command_correlation_id: string
+          profile_id: string
+          profile_status: string
+          profile_version: number
         }[]
       }
       create_tenant_invitation: {
@@ -627,6 +672,32 @@ export type Database = {
           invite_ref: string
         }[]
       }
+      create_tenant_profile: {
+        Args: {
+          command_reason: string
+          correlation_id?: string
+          profile_name: string
+        }
+        Returns: {
+          command_correlation_id: string
+          profile_id: string
+          profile_version: number
+        }[]
+      }
+      delete_tenant_permission_override: {
+        Args: {
+          command_reason: string
+          correlation_id?: string
+          expected_membership_version: number
+          expected_override_version: number
+          target_override_id: string
+        }
+        Returns: {
+          command_correlation_id: string
+          deleted_override_id: string
+          membership_version: number
+        }[]
+      }
       expire_tenant_invitation: {
         Args: {
           correlation_id?: string
@@ -634,6 +705,35 @@ export type Database = {
           target_invite_ref: string
         }
         Returns: undefined
+      }
+      expire_tenant_invitation_authenticated: {
+        Args: {
+          command_reason: string
+          correlation_id?: string
+          expected_invitation_version: number
+          target_invite_ref: string
+        }
+        Returns: {
+          command_correlation_id: string
+          invitation_status: string
+          invitation_version: number
+          invite_ref: string
+        }[]
+      }
+      invite_tenant_user: {
+        Args: {
+          command_reason: string
+          correlation_id?: string
+          expected_profile_version: number
+          invitation_expires_at: string
+          recipient_email: string
+          target_profile_id: string
+        }
+        Returns: {
+          command_correlation_id: string
+          invitation_token: string
+          invite_ref: string
+        }[]
       }
       resolve_my_tenant_context: {
         Args: { target_tenant_ref?: string }
@@ -654,6 +754,68 @@ export type Database = {
           target_invite_ref: string
         }
         Returns: undefined
+      }
+      revoke_tenant_invitation_authenticated: {
+        Args: {
+          command_reason: string
+          correlation_id?: string
+          expected_invitation_version: number
+          target_invite_ref: string
+        }
+        Returns: {
+          command_correlation_id: string
+          invitation_status: string
+          invitation_version: number
+          invite_ref: string
+        }[]
+      }
+      set_tenant_permission_override: {
+        Args: {
+          command_reason: string
+          correlation_id?: string
+          expected_membership_version: number
+          expected_override_version?: number
+          target_effect: string
+          target_membership_id: string
+          target_permission_id: string
+        }
+        Returns: {
+          command_correlation_id: string
+          membership_version: number
+          override_id: string
+          override_version: number
+        }[]
+      }
+      set_tenant_profile_permission: {
+        Args: {
+          command_reason: string
+          correlation_id?: string
+          expected_profile_version: number
+          target_allowed: boolean
+          target_permission_id: string
+          target_profile_id: string
+        }
+        Returns: {
+          allowed: boolean
+          command_correlation_id: string
+          permission_id: string
+          profile_id: string
+          profile_version: number
+        }[]
+      }
+      update_tenant_profile: {
+        Args: {
+          command_reason: string
+          correlation_id?: string
+          expected_profile_version: number
+          profile_name: string
+          target_profile_id: string
+        }
+        Returns: {
+          command_correlation_id: string
+          profile_id: string
+          profile_version: number
+        }[]
       }
     }
     Enums: {
