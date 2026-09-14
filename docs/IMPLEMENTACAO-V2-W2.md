@@ -8,7 +8,7 @@ permanece em `docs/IMPLEMENTACAO-V2-W2-PLANO.md`.
 ```text
 W2_PLAN_COMPLETE = YES
 W2A_AUTHORIZATION_MODEL_READY = YES
-W2B_PROFILES_OVERRIDES_READY = NO
+W2B_PROFILES_OVERRIDES_READY = YES
 W2C_AUTHORIZATION_ENGINE_READY = NO
 W2D_AUTHORIZATION_PROJECTION_READY = NO
 W2E_AUTHORIZATION_HARDENING_READY = NO
@@ -145,7 +145,7 @@ projetadas no schema público tipado.
 - imutabilidade de identidade, deprecation e proibição de hard delete;
 - revisão inicial, incremento por insert/update e monotonicidade;
 - quatro templates e grants somente no template Gestor;
-- ausência das entidades W2B;
+- presença das entidades W2B após a wave seguinte, sem alterar as invariantes do catálogo;
 - RLS fechada, grants mínimos, owners e `search_path`;
 - ausência de `SECURITY DEFINER`;
 - negação direta para `PUBLIC`, `anon`, `authenticated` e `service_role`.
@@ -181,9 +181,6 @@ versionado.
 
 ### Itens deferidos
 
-- **W2B:** `tenant_profiles`, baseline tenant, overrides, `profile_id` na
-  membership, target profile do convite, provisioning/backfill e integridade
-  tenant-aware correspondente.
 - **W2C:** evaluator, entitlement enforcement, resolvers, RLS funcional,
   governance commands, antiescalada e Audit dessas mutações.
 - **W2D:** projection self, vetor de revisão, provider, cache e generation local.
@@ -207,3 +204,187 @@ AUTHORIZATION_READY = NO
 
 Nenhum Supabase remoto, `db push`, `migration repair`, deploy, push, merge ou PR
 faz parte desta execução.
+
+## W2B — profiles, baseline, overrides e provisioning
+
+### Objetivo e escopo
+
+A W2B implementa exclusivamente as migrations W2-03 a W2-06 do plano
+aprovado. O estado autoritativo agora representa:
+
+```text
+membership → tenant profile → baseline ALLOW
+membership → override exato ALLOW/DENY
+```
+
+Não foi criado evaluator final, resolver de `OWN`/`ASSIGNED`/`TEAM`, alcance de
+registro, antiescalada, command administrativo autenticado, projection/cache,
+PermissionGuard, UI administrativa, Global Admin ou RLS de domínio. As novas
+tabelas permanecem fechadas até os commands e o evaluator da W2C.
+
+### Modelo físico
+
+`public.tenant_profiles` contém identidade interna, tenant proprietário, nome
+editável, origem imutável `template_key + template_version`, lifecycle
+`active/inactive`, `version`, timestamps e autoria. Nome é somente label: não é
+consultado por bootstrap, convite, assignment ou qualquer decisão de
+autoridade. Há unicidade de nome normalizado entre perfis ativos, uma cópia de
+cada template por tenant e chave composta `(tenant_id, id)`.
+
+`public.tenant_profile_permissions` é a relação exata de baseline. Presença da
+linha significa `ALLOW`; ausência significa deny implícito. Não há coluna
+`effect`, baseline `DENY` ou `INHERIT`. A FK composta impede profile de outro
+tenant e a FK de catálogo impede permission inexistente. Nova relação para
+permission deprecated é rejeitada; relações históricas permanecem preservadas
+para o evaluator W2C ignorar pelo estado atual do catálogo.
+
+`public.tenant_permission_overrides` pertence à membership e aceita somente
+`allow` ou `deny`. Ausência da linha significa herdar o baseline. A unicidade
+`(membership_id, permission_id)` impede efeitos simultâneos conflitantes e a FK
+composta `(tenant_id, membership_id)` impede associação cross-tenant. Remover a
+linha retorna à herança.
+
+`tenant_memberships` recebeu `profile_id`, `profile_assigned_at` e
+`profile_assigned_by`. Membership `active` ou `blocked` exige profile ativo do
+mesmo tenant; membership histórica `revoked` pré-W2 pode manter `null` e não
+ganha autoridade. O profile permanece na revogação quando já conhecido.
+
+`tenant_invitations` recebeu `target_profile_id`. Novo convite pending exige
+profile ativo do mesmo tenant, o target torna-se imutável e o aceite o copia
+atomicamente para a membership. Convite legado sem target falha fechado e deve
+ser revogado/reemitido; nenhum profile é inferido por nome ou e-mail.
+
+### Lifecycle, integridade e concorrência estrutural
+
+Profiles não sofrem hard delete. A inativação preserva o registro e é bloqueada
+enquanto houver membership operacional atribuída. Profile inativo não pode ser
+atribuído nem usado como target de novo convite.
+
+As relações tenant-specific usam FKs compostas, não dependem de RLS para
+coerência. IDs válidos de outro tenant são rejeitados para baseline,
+membership, override e convite. Unicidade relacional impede duplicatas sob
+concorrência.
+
+`tenant_profiles.version` avança em mudança do agregado do profile, inclusive
+nome, lifecycle e cada adição/remoção de baseline. `tenant_memberships.version`
+continua usando o mecanismo W1 e avança em assignment e em cada
+adição/alteração/remoção de override. Cada override também possui versão própria.
+`authorization_catalog_state.catalog_revision` continua exclusivamente sob a
+W2A. Os checks `expected_version` dos commands pertencem à W2C; a W2B entrega o
+estado persistido, triggers e unicidade necessários sem antecipar commands
+parciais.
+
+### Provisioning e backfill
+
+`private.provision_tenant_authorization` é `SECURITY INVOKER`, sem grant a
+roles de API, serializa por tenant e copia uma única vez os quatro templates
+privados para profiles tenant-owned. Somente grants do template no momento da
+criação são copiados. Retry não renomeia, reativa, restaura baseline removido,
+altera versões ou emite Audit duplicado. Permission futura não é retroativa.
+
+O bootstrap W1 foi substituído por nova definição forward-only, sem editar a
+migration W1: cria o tenant suspenso, provisiona os quatro profiles, atribui
+Gestor ao criador e somente então ativa o tenant. O backfill atribui Gestor
+apenas à membership registrada no marcador autoritativo do primeiro bootstrap.
+Se existir outra membership operacional sem inferência documental segura, a
+migration aborta com `W2B_BACKFILL_REQUIRES_EXPLICIT_PROFILE_ASSIGNMENT` em vez
+de conceder autoridade silenciosamente.
+
+Os templates privados continuam separados e não participam do runtime. Gestor
+recebe as onze permissions administrativas W2A; Técnico, Auxiliar e Solicitante
+permanecem com baseline vazio até as waves donas dos módulos funcionais.
+
+### Audit e segurança
+
+Provisioning efetivo escreve `authorization.tenant_provisioned` no
+`audit_events` append-only existente, com tenant, correlation, contagens e
+proveniência segura. Execução sistêmica usa ator `technical`; bootstrap usa o
+usuário real. Retry sem alteração não gera evento. Audit detalhado de rename,
+lifecycle, baseline, assignment e overrides será transacional nos commands W2C;
+essas mutações não foram expostas diretamente a clientes na W2B.
+
+As três tabelas públicas novas têm RLS habilitada, zero policies e nenhum
+privilégio para `PUBLIC`, `anon`, `authenticated` ou `service_role`. Todas as
+funções privadas W2B fixam `search_path` vazio e não possuem `PUBLIC EXECUTE`.
+Nenhuma nova função `SECURITY DEFINER` foi criada; apenas as boundaries W1 de
+bootstrap, criação de convite e aceite foram substituídas preservando seu modelo
+de grants. `authenticated` continua sem mutation administrativa antes da W2C.
+
+### Migrations
+
+| Migration | Responsabilidade |
+| --- | --- |
+| `20260914002000_w2b_tenant_profiles.sql` | Profiles tenant-owned, baseline ALLOW, índices, triggers de identidade/versão e RLS fechada |
+| `20260914003000_w2b_membership_authorization.sql` | Vínculo membership-profile, target do convite, overrides, FKs compostas e revisão da membership |
+| `20260914004000_w2b_provisioning_backfill.sql` | Provisioning privado idempotente, integração forward-only com bootstrap/convites e backfill fail-closed |
+| `20260914005000_w2b_integrity_finalization.sql` | Profile obrigatório operacional, lifecycle, validação das constraints e proteção de targets |
+
+As migrations W0, W1 e W2A não foram alteradas. A cadeia completa de doze
+migrations foi aplicada do zero no Supabase local descartável.
+
+### Types, testes e evidências
+
+`src/infrastructure/supabase/database.types.ts` foi regenerado exclusivamente
+por `npm run db:types`. O diff reflete as três tabelas W2B, os novos campos de
+membership/invitation, suas relações e a nova assinatura profile-aware do
+command de convite. Tabelas e command privados não são projetados no schema
+público tipado.
+
+`supabase/tests/w2b_profiles_overrides_provisioning.sql` contém 77 asserts. A
+suíte prova modelo físico, lifecycle, nome sem autoridade, hard delete,
+baseline por presença, override ALLOW/DENY/herança, versões, profile obrigatório,
+profile inativo, targets de convite, aceite atômico, fail-closed legado,
+idempotência, preservação de customização, não retroatividade, Tenant A/B, FKs
+compostas, RLS, grants, owners e `search_path`.
+
+Os fixtures W1 foram adaptados somente para provisionar profiles e fornecer o
+novo vínculo obrigatório. A semântica W1 de bootstrap, convite, contexto,
+membership operacional única e lifecycles foi preservada. O teste W2A foi
+atualizado apenas para reconhecer que as tabelas formalmente deferidas agora
+existem.
+
+| Validação | Resultado |
+| --- | --- |
+| `npm run preflight:v2` inicial | `WARN`: Docker não estava visível no sandbox; branch, HEAD, worktree, arquivos e toolchain passaram |
+| `npm run db:start` | `PASS`: Supabase local iniciado sem expor credenciais |
+| `npm run db:reset` | `PASS`: doze migrations W0/W1/W2A/W2B aplicadas do zero |
+| `npm run db:types` | `PASS`: tipos regenerados pelo CLI local |
+| schema lint | `PASS`: nenhum erro no schema público |
+| `npm run test:v2:db` | `PASS`: 7 arquivos, W2B 77/77 e total 295/295; `DB_SMOKE_OK` |
+| `npm run test:v2:unit` | `PASS`: 12 arquivos e 65/65 testes |
+| `npm run test:v2:e2e` | `PASS`: 6/6 Chromium |
+| `npm run typecheck` | `PASS` |
+| `npm run lint` | `PASS` |
+| `npm run build` | `PASS`: 246 módulos; aviso preexistente de chunk acima de 500 kB |
+
+### Falhas encontradas e correções
+
+O primeiro smoke ocorreu com o runtime local parado; o Supabase descartável foi
+iniciado e o reset passou. Na primeira regressão após o schema novo, fixtures W1
+ainda criavam memberships/convites sem profile e três asserts W2A ainda
+esperavam ausência das tabelas W2B. Os fixtures foram ajustados ao contrato
+novo, sem mudar semântica W1. Um segundo ciclo revelou o nome físico
+`default_name` nos templates privados; o provisioning foi corrigido e a suíte
+W1/W2A voltou a 218/218. A suíte W2B foi então adicionada e passou integralmente.
+
+### Itens deferidos e gate W2B
+
+- **W2C:** evaluator exato, entitlement enforcement, resolvers de scope,
+  commands autenticados, antiescalada, optimistic concurrency por
+  `expected_version`, Audit detalhado e enforcement funcional.
+- **W2D:** projection self, vetor de revisão, provider, cache e generation local.
+- **W2E:** policies/grants finais, hardening consolidado e matriz adversarial da
+  autorização integrada.
+
+```text
+W2_PLAN_COMPLETE = YES
+W2A_AUTHORIZATION_MODEL_READY = YES
+W2B_PROFILES_OVERRIDES_READY = YES
+W2C_AUTHORIZATION_ENGINE_READY = NO
+W2D_AUTHORIZATION_PROJECTION_READY = NO
+W2E_AUTHORIZATION_HARDENING_READY = NO
+AUTHORIZATION_READY = NO
+```
+
+Nenhum Supabase remoto, `db push`, `migration repair`, deploy, push, merge ou PR
+faz parte da W2B.

@@ -20,17 +20,26 @@ values
   ('21000000-0000-4000-8000-000000000001', '31000000-0000-4000-8000-000000000001', 'RLS Tenant A', 'active', '11000000-0000-4000-8000-000000000001'),
   ('21000000-0000-4000-8000-000000000002', '31000000-0000-4000-8000-000000000002', 'RLS Tenant B', 'active', '11000000-0000-4000-8000-000000000002');
 
+do $$
+begin
+  perform * from private.provision_tenant_authorization('21000000-0000-4000-8000-000000000001');
+  perform * from private.provision_tenant_authorization('21000000-0000-4000-8000-000000000002');
+end;
+$$;
+
 insert into public.tenant_memberships (
   id,
   tenant_id,
   user_id,
   status,
   joined_at,
-  created_by
+  created_by,
+  profile_id,
+  profile_assigned_at
 )
 values
-  ('41000000-0000-4000-8000-000000000001', '21000000-0000-4000-8000-000000000001', '11000000-0000-4000-8000-000000000001', 'active', statement_timestamp(), '11000000-0000-4000-8000-000000000001'),
-  ('41000000-0000-4000-8000-000000000002', '21000000-0000-4000-8000-000000000002', '11000000-0000-4000-8000-000000000002', 'active', statement_timestamp(), '11000000-0000-4000-8000-000000000002');
+  ('41000000-0000-4000-8000-000000000001', '21000000-0000-4000-8000-000000000001', '11000000-0000-4000-8000-000000000001', 'active', statement_timestamp(), '11000000-0000-4000-8000-000000000001', (select id from public.tenant_profiles where tenant_id = '21000000-0000-4000-8000-000000000001' and template_key = 'manager'), statement_timestamp()),
+  ('41000000-0000-4000-8000-000000000002', '21000000-0000-4000-8000-000000000002', '11000000-0000-4000-8000-000000000002', 'active', statement_timestamp(), '11000000-0000-4000-8000-000000000002', (select id from public.tenant_profiles where tenant_id = '21000000-0000-4000-8000-000000000002' and template_key = 'manager'), statement_timestamp());
 
 insert into public.tenant_entitlements (
   tenant_id,
@@ -44,12 +53,14 @@ values
 
 insert into public.tenant_invitations (
   tenant_id,
+  target_profile_id,
   recipient_email_hash,
   expires_at,
   created_by
 )
 values (
   '21000000-0000-4000-8000-000000000001',
+  (select id from public.tenant_profiles where tenant_id = '21000000-0000-4000-8000-000000000001' and template_key = 'manager'),
   repeat('c', 64),
   statement_timestamp() + interval '1 day',
   '11000000-0000-4000-8000-000000000001'

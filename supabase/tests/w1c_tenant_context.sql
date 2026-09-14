@@ -59,15 +59,24 @@ values
   ('24000000-0000-4000-8000-000000000003', '34000000-0000-4000-8000-000000000003', 'Suspended Tenant', 'suspended', statement_timestamp(), '14000000-0000-4000-8000-000000000001'),
   ('24000000-0000-4000-8000-000000000004', '34000000-0000-4000-8000-000000000004', 'Disabled Feature Tenant', 'active', null, '14000000-0000-4000-8000-000000000001');
 
+do $$
+begin
+  perform * from private.provision_tenant_authorization('24000000-0000-4000-8000-000000000001');
+  perform * from private.provision_tenant_authorization('24000000-0000-4000-8000-000000000002');
+  perform * from private.provision_tenant_authorization('24000000-0000-4000-8000-000000000003');
+  perform * from private.provision_tenant_authorization('24000000-0000-4000-8000-000000000004');
+end;
+$$;
+
 insert into public.tenant_memberships
-  (id, tenant_id, user_id, status, joined_at, blocked_at, revoked_at, created_by)
+  (id, tenant_id, user_id, status, joined_at, blocked_at, revoked_at, created_by, profile_id, profile_assigned_at)
 values
-  ('44000000-0000-4000-8000-000000000001', '24000000-0000-4000-8000-000000000001', '14000000-0000-4000-8000-000000000001', 'active', statement_timestamp(), null, null, '14000000-0000-4000-8000-000000000001'),
-  ('44000000-0000-4000-8000-000000000002', '24000000-0000-4000-8000-000000000002', '14000000-0000-4000-8000-000000000002', 'active', statement_timestamp(), null, null, '14000000-0000-4000-8000-000000000001'),
-  ('44000000-0000-4000-8000-000000000006', '24000000-0000-4000-8000-000000000001', '14000000-0000-4000-8000-000000000006', 'blocked', statement_timestamp(), statement_timestamp(), null, '14000000-0000-4000-8000-000000000001'),
-  ('44000000-0000-4000-8000-000000000007', '24000000-0000-4000-8000-000000000001', '14000000-0000-4000-8000-000000000007', 'revoked', statement_timestamp(), null, statement_timestamp(), '14000000-0000-4000-8000-000000000001'),
-  ('44000000-0000-4000-8000-000000000008', '24000000-0000-4000-8000-000000000003', '14000000-0000-4000-8000-000000000008', 'active', statement_timestamp(), null, null, '14000000-0000-4000-8000-000000000001'),
-  ('44000000-0000-4000-8000-000000000009', '24000000-0000-4000-8000-000000000004', '14000000-0000-4000-8000-000000000009', 'active', statement_timestamp(), null, null, '14000000-0000-4000-8000-000000000001');
+  ('44000000-0000-4000-8000-000000000001', '24000000-0000-4000-8000-000000000001', '14000000-0000-4000-8000-000000000001', 'active', statement_timestamp(), null, null, '14000000-0000-4000-8000-000000000001', (select id from public.tenant_profiles where tenant_id = '24000000-0000-4000-8000-000000000001' and template_key = 'manager'), statement_timestamp()),
+  ('44000000-0000-4000-8000-000000000002', '24000000-0000-4000-8000-000000000002', '14000000-0000-4000-8000-000000000002', 'active', statement_timestamp(), null, null, '14000000-0000-4000-8000-000000000001', (select id from public.tenant_profiles where tenant_id = '24000000-0000-4000-8000-000000000002' and template_key = 'manager'), statement_timestamp()),
+  ('44000000-0000-4000-8000-000000000006', '24000000-0000-4000-8000-000000000001', '14000000-0000-4000-8000-000000000006', 'blocked', statement_timestamp(), statement_timestamp(), null, '14000000-0000-4000-8000-000000000001', (select id from public.tenant_profiles where tenant_id = '24000000-0000-4000-8000-000000000001' and template_key = 'manager'), statement_timestamp()),
+  ('44000000-0000-4000-8000-000000000007', '24000000-0000-4000-8000-000000000001', '14000000-0000-4000-8000-000000000007', 'revoked', statement_timestamp(), null, statement_timestamp(), '14000000-0000-4000-8000-000000000001', (select id from public.tenant_profiles where tenant_id = '24000000-0000-4000-8000-000000000001' and template_key = 'manager'), statement_timestamp()),
+  ('44000000-0000-4000-8000-000000000008', '24000000-0000-4000-8000-000000000003', '14000000-0000-4000-8000-000000000008', 'active', statement_timestamp(), null, null, '14000000-0000-4000-8000-000000000001', (select id from public.tenant_profiles where tenant_id = '24000000-0000-4000-8000-000000000003' and template_key = 'manager'), statement_timestamp()),
+  ('44000000-0000-4000-8000-000000000009', '24000000-0000-4000-8000-000000000004', '14000000-0000-4000-8000-000000000009', 'active', statement_timestamp(), null, null, '14000000-0000-4000-8000-000000000001', (select id from public.tenant_profiles where tenant_id = '24000000-0000-4000-8000-000000000004' and template_key = 'manager'), statement_timestamp());
 
 insert into public.tenant_entitlements (tenant_id, module_key, enabled, created_by)
 values

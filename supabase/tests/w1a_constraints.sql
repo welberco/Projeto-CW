@@ -80,13 +80,22 @@ values
     '10000000-0000-4000-8000-000000000002'
   );
 
+do $$
+begin
+  perform * from private.provision_tenant_authorization('20000000-0000-4000-8000-000000000001');
+  perform * from private.provision_tenant_authorization('20000000-0000-4000-8000-000000000002');
+end;
+$$;
+
 insert into public.tenant_memberships (
   id,
   tenant_id,
   user_id,
   status,
   joined_at,
-  created_by
+  created_by,
+  profile_id,
+  profile_assigned_at
 )
 values (
   '40000000-0000-4000-8000-000000000001',
@@ -94,7 +103,9 @@ values (
   '10000000-0000-4000-8000-000000000001',
   'active',
   statement_timestamp(),
-  '10000000-0000-4000-8000-000000000001'
+  '10000000-0000-4000-8000-000000000001',
+  (select id from public.tenant_profiles where tenant_id = '20000000-0000-4000-8000-000000000001' and template_key = 'manager'),
+  statement_timestamp()
 );
 
 select throws_ok(
@@ -156,13 +167,17 @@ select throws_ok(
       user_id,
       status,
       joined_at,
-      created_by
+      created_by,
+      profile_id,
+      profile_assigned_at
     ) values (
       '20000000-0000-4000-8000-000000000002',
       '10000000-0000-4000-8000-000000000001',
       'active',
       statement_timestamp(),
-      '10000000-0000-4000-8000-000000000001'
+      '10000000-0000-4000-8000-000000000001',
+      (select id from public.tenant_profiles where tenant_id = '20000000-0000-4000-8000-000000000002' and template_key = 'manager'),
+      statement_timestamp()
     )
   $$,
   '23505',
@@ -178,14 +193,18 @@ select throws_ok(
       status,
       joined_at,
       blocked_at,
-      created_by
+      created_by,
+      profile_id,
+      profile_assigned_at
     ) values (
       '20000000-0000-4000-8000-000000000002',
       '10000000-0000-4000-8000-000000000001',
       'blocked',
       statement_timestamp(),
       statement_timestamp(),
-      '10000000-0000-4000-8000-000000000001'
+      '10000000-0000-4000-8000-000000000001',
+      (select id from public.tenant_profiles where tenant_id = '20000000-0000-4000-8000-000000000002' and template_key = 'manager'),
+      statement_timestamp()
     )
   $$,
   '23505',
@@ -200,13 +219,17 @@ select throws_ok(
       user_id,
       status,
       joined_at,
-      created_by
+      created_by,
+      profile_id,
+      profile_assigned_at
     ) values (
       '20000000-0000-4000-8000-000000000002',
       '10000000-0000-4000-8000-000000000002',
       'blocked',
       statement_timestamp(),
-      '10000000-0000-4000-8000-000000000001'
+      '10000000-0000-4000-8000-000000000001',
+      (select id from public.tenant_profiles where tenant_id = '20000000-0000-4000-8000-000000000002' and template_key = 'manager'),
+      statement_timestamp()
     )
   $$,
   '23514',
@@ -221,13 +244,17 @@ select throws_ok(
       user_id,
       status,
       joined_at,
-      created_by
+      created_by,
+      profile_id,
+      profile_assigned_at
     ) values (
       '20000000-0000-4000-8000-000000000099',
       '10000000-0000-4000-8000-000000000002',
       'active',
       statement_timestamp(),
-      '10000000-0000-4000-8000-000000000001'
+      '10000000-0000-4000-8000-000000000001',
+      (select id from public.tenant_profiles where tenant_id = '20000000-0000-4000-8000-000000000001' and template_key = 'manager'),
+      statement_timestamp()
     )
   $$,
   '23503',
@@ -247,13 +274,17 @@ select lives_ok(
       user_id,
       status,
       joined_at,
-      created_by
+      created_by,
+      profile_id,
+      profile_assigned_at
     ) values (
       '20000000-0000-4000-8000-000000000002',
       '10000000-0000-4000-8000-000000000001',
       'active',
       statement_timestamp(),
-      '10000000-0000-4000-8000-000000000001'
+      '10000000-0000-4000-8000-000000000001',
+      (select id from public.tenant_profiles where tenant_id = '20000000-0000-4000-8000-000000000002' and template_key = 'manager'),
+      statement_timestamp()
     )
   $$,
   'a user can join another tenant after its prior membership is revoked'
@@ -272,13 +303,17 @@ select lives_ok(
       user_id,
       status,
       joined_at,
-      created_by
+      created_by,
+      profile_id,
+      profile_assigned_at
     ) values (
       '20000000-0000-4000-8000-000000000001',
       '10000000-0000-4000-8000-000000000001',
       'active',
       statement_timestamp(),
-      '10000000-0000-4000-8000-000000000001'
+      '10000000-0000-4000-8000-000000000001',
+      (select id from public.tenant_profiles where tenant_id = '20000000-0000-4000-8000-000000000001' and template_key = 'manager'),
+      statement_timestamp()
     )
   $$,
   'same-tenant re-entry creates a new row after revocation'
@@ -297,12 +332,14 @@ select is(
 
 insert into public.tenant_invitations (
   tenant_id,
+  target_profile_id,
   recipient_email_hash,
   expires_at,
   created_by
 )
 values (
   '20000000-0000-4000-8000-000000000001',
+  (select id from public.tenant_profiles where tenant_id = '20000000-0000-4000-8000-000000000001' and template_key = 'manager'),
   repeat('a', 64),
   statement_timestamp() + interval '1 day',
   '10000000-0000-4000-8000-000000000001'
@@ -312,11 +349,13 @@ select throws_ok(
   $$
     insert into public.tenant_invitations (
       tenant_id,
+      target_profile_id,
       recipient_email_hash,
       expires_at,
       created_by
     ) values (
       '20000000-0000-4000-8000-000000000001',
+      (select id from public.tenant_profiles where tenant_id = '20000000-0000-4000-8000-000000000001' and template_key = 'manager'),
       repeat('a', 64),
       statement_timestamp() + interval '2 days',
       '10000000-0000-4000-8000-000000000001'
@@ -331,11 +370,13 @@ select throws_ok(
   $$
     insert into public.tenant_invitations (
       tenant_id,
+      target_profile_id,
       recipient_email_hash,
       expires_at,
       created_by
     ) values (
       '20000000-0000-4000-8000-000000000001',
+      (select id from public.tenant_profiles where tenant_id = '20000000-0000-4000-8000-000000000001' and template_key = 'manager'),
       'not-a-sha256-hash',
       statement_timestamp() + interval '1 day',
       '10000000-0000-4000-8000-000000000001'
@@ -350,11 +391,13 @@ select throws_ok(
   $$
     insert into public.tenant_invitations (
       tenant_id,
+      target_profile_id,
       recipient_email_hash,
       expires_at,
       created_by
     ) values (
       '20000000-0000-4000-8000-000000000001',
+      (select id from public.tenant_profiles where tenant_id = '20000000-0000-4000-8000-000000000001' and template_key = 'manager'),
       repeat('d', 64),
       statement_timestamp() - interval '1 second',
       '10000000-0000-4000-8000-000000000001'
@@ -369,6 +412,7 @@ select throws_ok(
   $$
     insert into public.tenant_invitations (
       tenant_id,
+      target_profile_id,
       recipient_email_hash,
       status,
       expires_at,
@@ -376,6 +420,7 @@ select throws_ok(
       created_by
     ) values (
       '20000000-0000-4000-8000-000000000001',
+      (select id from public.tenant_profiles where tenant_id = '20000000-0000-4000-8000-000000000001' and template_key = 'manager'),
       repeat('b', 64),
       'accepted',
       statement_timestamp() + interval '1 day',

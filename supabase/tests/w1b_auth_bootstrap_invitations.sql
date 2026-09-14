@@ -8,7 +8,7 @@ select has_column('public', 'tenant_invitations', 'token_hash', 'invitation toke
 select is(has_function_privilege('anon', 'public.bootstrap_initial_tenant(uuid,text,uuid)', 'EXECUTE'), false, 'anon cannot execute bootstrap');
 select is(has_function_privilege('authenticated', 'public.bootstrap_initial_tenant(uuid,text,uuid)', 'EXECUTE'), false, 'authenticated cannot execute bootstrap');
 select ok(has_function_privilege('service_role', 'public.bootstrap_initial_tenant(uuid,text,uuid)', 'EXECUTE'), 'server role can execute bootstrap');
-select is(has_function_privilege('authenticated', 'public.create_tenant_invitation(uuid,text,timestamptz,uuid,uuid)', 'EXECUTE'), false, 'ordinary users cannot create invitations before W2');
+select is(has_function_privilege('authenticated', 'public.create_tenant_invitation(uuid,uuid,text,timestamptz,uuid,uuid)', 'EXECUTE'), false, 'ordinary users cannot create invitations before W2C');
 select is(has_function_privilege('authenticated', 'public.revoke_tenant_invitation(uuid,uuid,uuid)', 'EXECUTE'), false, 'ordinary users cannot revoke invitations before W2');
 select is(has_function_privilege('authenticated', 'public.expire_tenant_invitation(uuid,uuid,uuid)', 'EXECUTE'), false, 'ordinary users cannot expire invitations before W2');
 select ok(has_function_privilege('authenticated', 'public.accept_tenant_invitation(text,uuid)', 'EXECUTE'), 'authenticated can execute narrow acceptance');
@@ -64,7 +64,9 @@ grant select on w1b_invites to authenticated;
 
 insert into w1b_invites
 select 'target', invitation.* from public.create_tenant_invitation(
-  (select tenant_id from w1b_bootstrap_result), '  TARGET@EXAMPLE.INVALID  ',
+  (select tenant_id from w1b_bootstrap_result),
+  (select id from public.tenant_profiles where tenant_id = (select tenant_id from w1b_bootstrap_result) and template_key = 'manager'),
+  '  TARGET@EXAMPLE.INVALID  ',
   statement_timestamp() + interval '1 day', '12000000-0000-4000-8000-000000000001',
   '52000000-0000-4000-8000-000000000003'
 ) as invitation;
@@ -121,7 +123,9 @@ reset role;
 
 insert into w1b_invites
 select 'revoked', invitation.* from public.create_tenant_invitation(
-  (select tenant_id from w1b_bootstrap_result), 'revoked@example.invalid', statement_timestamp() + interval '1 day',
+  (select tenant_id from w1b_bootstrap_result),
+  (select id from public.tenant_profiles where tenant_id = (select tenant_id from w1b_bootstrap_result) and template_key = 'manager'),
+  'revoked@example.invalid', statement_timestamp() + interval '1 day',
   '12000000-0000-4000-8000-000000000001', pg_catalog.gen_random_uuid()
 ) as invitation;
 select public.revoke_tenant_invitation(
@@ -138,7 +142,9 @@ reset role;
 
 insert into w1b_invites
 select 'expired', invitation.* from public.create_tenant_invitation(
-  (select tenant_id from w1b_bootstrap_result), 'expired@example.invalid', statement_timestamp() + interval '1 day',
+  (select tenant_id from w1b_bootstrap_result),
+  (select id from public.tenant_profiles where tenant_id = (select tenant_id from w1b_bootstrap_result) and template_key = 'manager'),
+  'expired@example.invalid', statement_timestamp() + interval '1 day',
   '12000000-0000-4000-8000-000000000001', pg_catalog.gen_random_uuid()
 ) as invitation;
 update public.tenant_invitations
@@ -159,27 +165,40 @@ select is((select status from public.tenant_invitations where invite_ref = (sele
 
 insert into w1b_invites
 select 'active-conflict', invitation.* from public.create_tenant_invitation(
-  (select tenant_id from w1b_bootstrap_result), 'active-conflict@example.invalid', statement_timestamp() + interval '1 day',
+  (select tenant_id from w1b_bootstrap_result),
+  (select id from public.tenant_profiles where tenant_id = (select tenant_id from w1b_bootstrap_result) and template_key = 'manager'),
+  'active-conflict@example.invalid', statement_timestamp() + interval '1 day',
   '12000000-0000-4000-8000-000000000001', pg_catalog.gen_random_uuid()
 ) as invitation;
 insert into w1b_invites
 select 'blocked-conflict', invitation.* from public.create_tenant_invitation(
-  (select tenant_id from w1b_bootstrap_result), 'blocked-conflict@example.invalid', statement_timestamp() + interval '1 day',
+  (select tenant_id from w1b_bootstrap_result),
+  (select id from public.tenant_profiles where tenant_id = (select tenant_id from w1b_bootstrap_result) and template_key = 'manager'),
+  'blocked-conflict@example.invalid', statement_timestamp() + interval '1 day',
   '12000000-0000-4000-8000-000000000001', pg_catalog.gen_random_uuid()
 ) as invitation;
 insert into w1b_invites
 select 'reentry', invitation.* from public.create_tenant_invitation(
-  (select tenant_id from w1b_bootstrap_result), 'reentry@example.invalid', statement_timestamp() + interval '1 day',
+  (select tenant_id from w1b_bootstrap_result),
+  (select id from public.tenant_profiles where tenant_id = (select tenant_id from w1b_bootstrap_result) and template_key = 'manager'),
+  'reentry@example.invalid', statement_timestamp() + interval '1 day',
   '12000000-0000-4000-8000-000000000001', pg_catalog.gen_random_uuid()
 ) as invitation;
 
 insert into public.tenants (id, tenant_ref, display_name, status, created_by)
 values ('22000000-0000-4000-8000-000000000001', '32000000-0000-4000-8000-000000000001', 'Prior Tenant', 'active', '12000000-0000-4000-8000-000000000001');
-insert into public.tenant_memberships (tenant_id, user_id, status, joined_at, blocked_at, revoked_at, created_by)
+
+do $$
+begin
+  perform * from private.provision_tenant_authorization('22000000-0000-4000-8000-000000000001');
+end;
+$$;
+
+insert into public.tenant_memberships (tenant_id, user_id, status, joined_at, blocked_at, revoked_at, created_by, profile_id, profile_assigned_at)
 values
-  ('22000000-0000-4000-8000-000000000001', '12000000-0000-4000-8000-000000000006', 'active', statement_timestamp(), null, null, '12000000-0000-4000-8000-000000000001'),
-  ('22000000-0000-4000-8000-000000000001', '12000000-0000-4000-8000-000000000007', 'blocked', statement_timestamp(), statement_timestamp(), null, '12000000-0000-4000-8000-000000000001'),
-  ('22000000-0000-4000-8000-000000000001', '12000000-0000-4000-8000-000000000008', 'revoked', statement_timestamp(), null, statement_timestamp(), '12000000-0000-4000-8000-000000000001');
+  ('22000000-0000-4000-8000-000000000001', '12000000-0000-4000-8000-000000000006', 'active', statement_timestamp(), null, null, '12000000-0000-4000-8000-000000000001', (select id from public.tenant_profiles where tenant_id = '22000000-0000-4000-8000-000000000001' and template_key = 'manager'), statement_timestamp()),
+  ('22000000-0000-4000-8000-000000000001', '12000000-0000-4000-8000-000000000007', 'blocked', statement_timestamp(), statement_timestamp(), null, '12000000-0000-4000-8000-000000000001', (select id from public.tenant_profiles where tenant_id = '22000000-0000-4000-8000-000000000001' and template_key = 'manager'), statement_timestamp()),
+  ('22000000-0000-4000-8000-000000000001', '12000000-0000-4000-8000-000000000008', 'revoked', statement_timestamp(), null, statement_timestamp(), '12000000-0000-4000-8000-000000000001', (select id from public.tenant_profiles where tenant_id = '22000000-0000-4000-8000-000000000001' and template_key = 'manager'), statement_timestamp());
 
 set local role authenticated;
 set local "request.jwt.claim.sub" = '12000000-0000-4000-8000-000000000006';
@@ -205,12 +224,16 @@ reset role;
 
 insert into w1b_invites
 select 'suspended', invitation.* from public.create_tenant_invitation(
-  (select tenant_id from w1b_bootstrap_result), 'suspended@example.invalid', statement_timestamp() + interval '1 day',
+  (select tenant_id from w1b_bootstrap_result),
+  (select id from public.tenant_profiles where tenant_id = (select tenant_id from w1b_bootstrap_result) and template_key = 'manager'),
+  'suspended@example.invalid', statement_timestamp() + interval '1 day',
   '12000000-0000-4000-8000-000000000001', pg_catalog.gen_random_uuid()
 ) as invitation;
 insert into w1b_invites
 select 'inactive', invitation.* from public.create_tenant_invitation(
-  (select tenant_id from w1b_bootstrap_result), 'inactive@example.invalid', statement_timestamp() + interval '1 day',
+  (select tenant_id from w1b_bootstrap_result),
+  (select id from public.tenant_profiles where tenant_id = (select tenant_id from w1b_bootstrap_result) and template_key = 'manager'),
+  'inactive@example.invalid', statement_timestamp() + interval '1 day',
   '12000000-0000-4000-8000-000000000001', pg_catalog.gen_random_uuid()
 ) as invitation;
 

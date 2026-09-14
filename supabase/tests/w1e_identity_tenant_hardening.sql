@@ -330,8 +330,15 @@ values
     '15000000-0000-4000-8000-000000000002'
   );
 
+do $$
+begin
+  perform * from private.provision_tenant_authorization('25000000-0000-4000-8000-000000000001');
+  perform * from private.provision_tenant_authorization('25000000-0000-4000-8000-000000000002');
+end;
+$$;
+
 insert into public.tenant_memberships (
-  id, tenant_id, user_id, status, joined_at, created_by
+  id, tenant_id, user_id, status, joined_at, created_by, profile_id, profile_assigned_at
 )
 values
   (
@@ -340,7 +347,9 @@ values
     '15000000-0000-4000-8000-000000000001',
     'active',
     statement_timestamp(),
-    '15000000-0000-4000-8000-000000000001'
+    '15000000-0000-4000-8000-000000000001',
+    (select id from public.tenant_profiles where tenant_id = '25000000-0000-4000-8000-000000000001' and template_key = 'manager'),
+    statement_timestamp()
   ),
   (
     '45000000-0000-4000-8000-000000000002',
@@ -348,7 +357,9 @@ values
     '15000000-0000-4000-8000-000000000002',
     'active',
     statement_timestamp(),
-    '15000000-0000-4000-8000-000000000002'
+    '15000000-0000-4000-8000-000000000002',
+    (select id from public.tenant_profiles where tenant_id = '25000000-0000-4000-8000-000000000002' and template_key = 'manager'),
+    statement_timestamp()
   );
 
 insert into public.tenant_entitlements (
@@ -537,6 +548,7 @@ create temporary table w1e_invitation as
 select *
 from public.create_tenant_invitation(
   '25000000-0000-4000-8000-000000000001',
+  (select id from public.tenant_profiles where tenant_id = '25000000-0000-4000-8000-000000000001' and template_key = 'manager'),
   '  W1E-INVITED@EXAMPLE.INVALID  ',
   statement_timestamp() + interval '1 day',
   '15000000-0000-4000-8000-000000000001',

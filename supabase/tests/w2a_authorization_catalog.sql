@@ -145,9 +145,9 @@ select is(
   'technician, assistant and requester receive no premature functional grants'
 );
 
-select is(to_regclass('public.tenant_profiles'), null::regclass, 'tenant profiles remain deferred to W2B');
-select is(to_regclass('public.tenant_profile_permissions'), null::regclass, 'tenant baseline grants remain deferred to W2B');
-select is(to_regclass('public.tenant_permission_overrides'), null::regclass, 'individual overrides remain deferred to W2B');
+select is(to_regclass('public.tenant_profiles'), 'public.tenant_profiles'::regclass, 'W2B now owns tenant profiles');
+select is(to_regclass('public.tenant_profile_permissions'), 'public.tenant_profile_permissions'::regclass, 'W2B now owns tenant baseline grants');
+select is(to_regclass('public.tenant_permission_overrides'), 'public.tenant_permission_overrides'::regclass, 'W2B now owns individual overrides');
 
 -- Structural integrity and catalog lifecycle.
 select is(

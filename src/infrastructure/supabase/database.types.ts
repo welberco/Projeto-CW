@@ -204,6 +204,7 @@ export type Database = {
           recipient_email_hash: string
           revoked_at: string | null
           status: string
+          target_profile_id: string | null
           tenant_id: string
           token_hash: string | null
           updated_at: string
@@ -220,6 +221,7 @@ export type Database = {
           recipient_email_hash: string
           revoked_at?: string | null
           status?: string
+          target_profile_id?: string | null
           tenant_id: string
           token_hash?: string | null
           updated_at?: string
@@ -236,6 +238,7 @@ export type Database = {
           recipient_email_hash?: string
           revoked_at?: string | null
           status?: string
+          target_profile_id?: string | null
           tenant_id?: string
           token_hash?: string | null
           updated_at?: string
@@ -257,6 +260,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "tenant_invitations_target_profile_fk"
+            columns: ["tenant_id", "target_profile_id"]
+            isOneToOne: false
+            referencedRelation: "tenant_profiles"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
             foreignKeyName: "tenant_invitations_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
@@ -272,6 +282,9 @@ export type Database = {
           created_by: string
           id: string
           joined_at: string
+          profile_assigned_at: string | null
+          profile_assigned_by: string | null
+          profile_id: string | null
           revoked_at: string | null
           status: string
           tenant_id: string
@@ -285,6 +298,9 @@ export type Database = {
           created_by: string
           id?: string
           joined_at: string
+          profile_assigned_at?: string | null
+          profile_assigned_by?: string | null
+          profile_id?: string | null
           revoked_at?: string | null
           status: string
           tenant_id: string
@@ -298,6 +314,9 @@ export type Database = {
           created_by?: string
           id?: string
           joined_at?: string
+          profile_assigned_at?: string | null
+          profile_assigned_by?: string | null
+          profile_id?: string | null
           revoked_at?: string | null
           status?: string
           tenant_id?: string
@@ -314,6 +333,20 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "tenant_memberships_profile_assigned_by_fk"
+            columns: ["profile_assigned_by"]
+            isOneToOne: false
+            referencedRelation: "app_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tenant_memberships_profile_fk"
+            columns: ["tenant_id", "profile_id"]
+            isOneToOne: false
+            referencedRelation: "tenant_profiles"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
             foreignKeyName: "tenant_memberships_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
@@ -323,6 +356,187 @@ export type Database = {
           {
             foreignKeyName: "tenant_memberships_user_id_fkey"
             columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "app_users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tenant_permission_overrides: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          effect: string
+          id: string
+          membership_id: string
+          permission_id: string
+          tenant_id: string
+          updated_at: string
+          updated_by: string | null
+          version: number
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          effect: string
+          id?: string
+          membership_id: string
+          permission_id: string
+          tenant_id: string
+          updated_at?: string
+          updated_by?: string | null
+          version?: number
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          effect?: string
+          id?: string
+          membership_id?: string
+          permission_id?: string
+          tenant_id?: string
+          updated_at?: string
+          updated_by?: string | null
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tenant_permission_overrides_created_by_fk"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "app_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tenant_permission_overrides_membership_fk"
+            columns: ["tenant_id", "membership_id"]
+            isOneToOne: false
+            referencedRelation: "tenant_memberships"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "tenant_permission_overrides_permission_fk"
+            columns: ["permission_id"]
+            isOneToOne: false
+            referencedRelation: "permission_catalog"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tenant_permission_overrides_updated_by_fk"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "app_users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tenant_profile_permissions: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          permission_id: string
+          profile_id: string
+          tenant_id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          permission_id: string
+          profile_id: string
+          tenant_id: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          permission_id?: string
+          profile_id?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tenant_profile_permissions_created_by_fk"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "app_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tenant_profile_permissions_permission_fk"
+            columns: ["permission_id"]
+            isOneToOne: false
+            referencedRelation: "permission_catalog"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tenant_profile_permissions_profile_fk"
+            columns: ["tenant_id", "profile_id"]
+            isOneToOne: false
+            referencedRelation: "tenant_profiles"
+            referencedColumns: ["tenant_id", "id"]
+          },
+        ]
+      }
+      tenant_profiles: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          id: string
+          inactivated_at: string | null
+          name: string
+          status: string
+          template_key: string | null
+          template_version: number | null
+          tenant_id: string
+          updated_at: string
+          updated_by: string | null
+          version: number
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          inactivated_at?: string | null
+          name: string
+          status?: string
+          template_key?: string | null
+          template_version?: number | null
+          tenant_id: string
+          updated_at?: string
+          updated_by?: string | null
+          version?: number
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          inactivated_at?: string | null
+          name?: string
+          status?: string
+          template_key?: string | null
+          template_version?: number | null
+          tenant_id?: string
+          updated_at?: string
+          updated_by?: string | null
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tenant_profiles_created_by_fk"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "app_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tenant_profiles_tenant_fk"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tenant_profiles_updated_by_fk"
+            columns: ["updated_by"]
             isOneToOne: false
             referencedRelation: "app_users"
             referencedColumns: ["id"]
@@ -405,6 +619,7 @@ export type Database = {
           invitation_expires_at: string
           operator_user_id: string
           recipient_email: string
+          target_profile_id: string
           target_tenant_id: string
         }
         Returns: {
