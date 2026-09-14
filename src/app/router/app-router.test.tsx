@@ -5,7 +5,9 @@ import { describe, expect, it, vi } from 'vitest'
 import { AppProviders } from '@/app/providers/app-providers'
 import { createAppMemoryRouter } from '@/app/router/app-router'
 import type { AuthGateway } from '@/infrastructure/supabase/auth-gateway'
+import type { AuthorizationGateway } from '@/infrastructure/supabase/authorization-gateway'
 import type { ClientCorrelationId } from '@/shared/observability/correlation'
+import type { AuthorizationProjectionResolution } from '@/shared/authorization/authorization-projection'
 import type { TenantContextResolution } from '@/shared/session/tenant-context'
 
 const tenantRef = '34000000-0000-4000-8000-000000000001'
@@ -22,6 +24,29 @@ const readyResolution: TenantContextResolution = {
   },
 }
 
+const authorizationGateway: AuthorizationGateway = {
+  resolveProjection: () =>
+    Promise.resolve({
+      status: 'ready',
+      projection: {
+        principalId: 'principal-a',
+        tenantId: 'tenant-a',
+        tenantRef,
+        membershipId: 'membership-a',
+        profileId: 'profile-a',
+        profileName: 'Gestor',
+        revision: {
+          membershipVersion: 1,
+          profileVersion: 1,
+          catalogRevision: 12,
+        },
+        authorizationRevision: 'm1:p1:c12',
+        permissionCodes: [],
+        enabledEntitlements: ['maintenance'],
+      },
+    }),
+}
+
 function createGateway(
   resolveSession: AuthGateway['resolveSession'] = () =>
     Promise.resolve({ status: 'unauthenticated' }),
@@ -35,7 +60,11 @@ function createGateway(
   }
 }
 
-function renderRoute(path: string, gateway = createGateway()) {
+function renderRoute(
+  path: string,
+  gateway = createGateway(),
+  projectedAuthorizationGateway = authorizationGateway,
+) {
   const router = createAppMemoryRouter([path])
   const queryClient = new QueryClient({
     defaultOptions: {
@@ -47,6 +76,7 @@ function renderRoute(path: string, gateway = createGateway()) {
   render(
     <AppProviders
       authGateway={gateway}
+      authorizationGateway={projectedAuthorizationGateway}
       clientCorrelationId={'correlation-test' as ClientCorrelationId}
       queryClient={queryClient}
       release={{ environment: 'test', releaseId: 'w1d-test' }}
@@ -204,6 +234,79 @@ describe('app router', () => {
     expect(
       await screen.findByRole('heading', { name: 'Visão Geral' }),
     ).toBeVisible()
+  })
+
+  it('does not render tenant content before the authorization projection is ready', async () => {
+    let completeProjection:
+      | ((value: AuthorizationProjectionResolution) => void)
+      | undefined
+    const pendingAuthorizationGateway: AuthorizationGateway = {
+      resolveProjection: () =>
+        new Promise((resolve) => {
+          completeProjection = resolve
+        }),
+    }
+
+    renderRoute(
+      `/e/${tenantRef}/dashboard`,
+      createTenantGateway(),
+      pendingAuthorizationGateway,
+    )
+
+    expect(
+      await screen.findByRole('heading', { name: 'Carregando autorização' }),
+    ).toBeVisible()
+    expect(
+      screen.queryByRole('heading', { name: 'Visão Geral' }),
+    ).not.toBeInTheDocument()
+
+    act(() =>
+      completeProjection?.({
+        status: 'ready',
+        projection: {
+          principalId: 'principal-a',
+          tenantId: 'tenant-a',
+          tenantRef,
+          membershipId: 'membership-a',
+          profileId: 'profile-a',
+          profileName: 'Gestor',
+          revision: {
+            membershipVersion: 1,
+            profileVersion: 1,
+            catalogRevision: 12,
+          },
+          authorizationRevision: 'm1:p1:c12',
+          permissionCodes: [],
+          enabledEntitlements: ['maintenance'],
+        },
+      }),
+    )
+    expect(
+      await screen.findByRole('heading', { name: 'Visão Geral' }),
+    ).toBeVisible()
+  })
+
+  it('renders a generic fail-closed state when authorization is unavailable', async () => {
+    const unavailableAuthorizationGateway: AuthorizationGateway = {
+      resolveProjection: () =>
+        Promise.resolve({
+          status: 'profile_unavailable',
+          principalId: 'principal-a',
+        }),
+    }
+    renderRoute(
+      `/e/${tenantRef}/dashboard`,
+      createTenantGateway(),
+      unavailableAuthorizationGateway,
+    )
+
+    expect(
+      await screen.findByRole('heading', { name: 'Autorização indisponível' }),
+    ).toBeVisible()
+    expect(screen.queryByText('profile_unavailable')).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('heading', { name: 'Visão Geral' }),
+    ).not.toBeInTheDocument()
   })
 
   it('redirects the tenant index to the canonical dashboard route', async () => {

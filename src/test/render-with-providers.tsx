@@ -4,6 +4,7 @@ import { AppProviders } from '@/app/providers/app-providers'
 import { createAppQueryClient } from '@/app/query/create-query-client'
 import type { ClientCorrelationId } from '@/shared/observability/correlation'
 import type { AuthGateway } from '@/infrastructure/supabase/auth-gateway'
+import type { AuthorizationGateway } from '@/infrastructure/supabase/authorization-gateway'
 
 const testCorrelationId = 'correlation-test' as ClientCorrelationId
 
@@ -13,6 +14,10 @@ const testAuthGateway: AuthGateway = {
   signOut: () => Promise.resolve(),
   acceptInvitation: () => Promise.resolve(),
   onAuthChange: () => () => undefined,
+}
+
+const testAuthorizationGateway: AuthorizationGateway = {
+  resolveProjection: () => Promise.resolve({ status: 'unauthenticated' }),
 }
 
 const testRouterCoordinator = {
@@ -37,6 +42,7 @@ export function renderWithProviders(
     ...render(
       <AppProviders
         authGateway={testAuthGateway}
+        authorizationGateway={testAuthorizationGateway}
         clientCorrelationId={testCorrelationId}
         queryClient={queryClient}
         routerCoordinator={testRouterCoordinator}
@@ -52,6 +58,7 @@ export function renderWithProviders(
 export function renderWithAuthGateway(
   ui: ReactElement,
   authGateway: AuthGateway,
+  authorizationGateway: AuthorizationGateway = testAuthorizationGateway,
 ) {
   const queryClient = createAppQueryClient()
   queryClient.setDefaultOptions({
@@ -61,6 +68,7 @@ export function renderWithAuthGateway(
   return render(
     <AppProviders
       authGateway={authGateway}
+      authorizationGateway={authorizationGateway}
       clientCorrelationId={testCorrelationId}
       queryClient={queryClient}
       routerCoordinator={testRouterCoordinator}

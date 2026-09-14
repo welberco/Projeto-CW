@@ -1,22 +1,30 @@
-import type { ContextIdentity } from '@/shared/session/tenant-context'
+import type { AuthorizationProjection } from '@/shared/authorization/authorization-projection'
 
 type QueryKeyPart = Readonly<Record<string, unknown>> | string | number | boolean
 
 export function tenantQueryKey(
-  context: ContextIdentity,
+  projection: AuthorizationProjection,
+  authorizationGeneration: number,
   resource: string,
   ...parts: QueryKeyPart[]
 ) {
   return [
     'principal',
-    context.principalId,
-    'context',
-    context.contextGeneration,
+    projection.principalId,
     'tenant',
-    context.tenantId,
+    projection.tenantId,
     'membership',
-    context.membershipId,
-    context.membershipVersion,
+    projection.membershipId,
+    projection.revision.membershipVersion,
+    'profile',
+    projection.profileId,
+    projection.revision.profileVersion,
+    'catalog',
+    projection.revision.catalogRevision,
+    'authorization',
+    projection.authorizationRevision,
+    'generation',
+    authorizationGeneration,
     resource,
     ...parts,
   ] as const

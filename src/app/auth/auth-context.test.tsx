@@ -52,6 +52,7 @@ function setup(resolutions: TenantContextResolution[]) {
     events.push('navigate')
   })
   const revalidate = vi.fn()
+  const publishAuthorizationSignal = vi.fn()
   const gateway: AuthGateway = {
     resolveSession: vi.fn((): Promise<TenantContextResolution> => {
       const resolution =
@@ -69,6 +70,11 @@ function setup(resolutions: TenantContextResolution[]) {
 
   render(
     <SessionProvider
+      authorizationSignals={{
+        publish: publishAuthorizationSignal,
+        subscribe: () => () => undefined,
+        close: () => undefined,
+      }}
       gateway={gateway}
       queryClient={queryClient}
       routerCoordinator={{ navigateToLogin, revalidate }}
@@ -83,6 +89,7 @@ function setup(resolutions: TenantContextResolution[]) {
     gateway,
     getListener: () => listener,
     navigateToLogin,
+    publishAuthorizationSignal,
     queryClient,
     revalidate,
     signOut,
@@ -162,6 +169,7 @@ describe('session provider lifecycle', () => {
 
     await waitFor(() => expect(test.signOut).toHaveBeenCalledOnce())
     expect(test.events).toEqual(['cancel', 'signOut', 'navigate'])
+    expect(test.publishAuthorizationSignal).toHaveBeenCalledWith('signed-out')
     expect(test.queryClient.getQueryData(['sensitive'])).toBeUndefined()
     expect(await screen.findByText('unauthenticated')).toBeVisible()
   })

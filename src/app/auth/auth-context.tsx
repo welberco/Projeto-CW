@@ -9,6 +9,7 @@ import {
   type SessionRouterCoordinator,
 } from '@/app/query/session-cache-coordinator'
 import type { AuthGateway } from '@/infrastructure/supabase/auth-gateway'
+import type { AuthorizationSignalBus } from '@/app/authorization/authorization-signal'
 import {
   contextIdentityChanged,
   transitionSessionState,
@@ -20,11 +21,13 @@ export function SessionProvider({
   gateway,
   queryClient,
   routerCoordinator,
+  authorizationSignals,
 }: {
   children: ReactNode
   gateway: AuthGateway
   queryClient: QueryClient
   routerCoordinator: SessionRouterCoordinator
+  authorizationSignals?: AuthorizationSignalBus
 }) {
   const [state, setState] = useState<SessionState>({ status: 'booting' })
   const currentStateRef = useRef<SessionState>({ status: 'booting' })
@@ -121,6 +124,7 @@ export function SessionProvider({
         try {
           ++requestGenerationRef.current
           replaceState({ status: 'booting' })
+          authorizationSignals?.publish('signed-out')
           await clearSessionCache(queryClient)
           await gateway.signOut()
           replaceState({ status: 'unauthenticated' })
@@ -137,7 +141,7 @@ export function SessionProvider({
       resolveTenantRef: refresh,
       refreshSession: refresh,
     }),
-    [gateway, queryClient, refresh, replaceState, routerCoordinator, state],
+    [authorizationSignals, gateway, queryClient, refresh, replaceState, routerCoordinator, state],
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

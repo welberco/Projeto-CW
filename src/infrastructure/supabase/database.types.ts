@@ -735,6 +735,24 @@ export type Database = {
           invite_ref: string
         }[]
       }
+      resolve_my_authorization: {
+        Args: never
+        Returns: {
+          authorization_revision: string
+          catalog_revision: number
+          enabled_entitlements: string[]
+          membership_id: string
+          membership_version: number
+          permission_codes: string[]
+          principal_id: string
+          profile_id: string
+          profile_name: string
+          profile_version: number
+          projection_status: string
+          tenant_id: string
+          tenant_ref: string
+        }[]
+      }
       resolve_my_tenant_context: {
         Args: { target_tenant_ref?: string }
         Returns: {

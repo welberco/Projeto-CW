@@ -1,6 +1,8 @@
 import { useState, type FormEvent } from 'react'
 import { Navigate } from 'react-router-dom'
 import { useAuth } from '@/app/auth/use-auth'
+import { useAuthorization } from '@/app/authorization/use-authorization'
+import { AuthorizationStatePage } from '@/app/pages/authorization-state-page'
 import { canonicalTenantPath } from '@/app/router/tenant-route'
 import { Button } from '@/shared/ui/button'
 import { StatePanel } from '@/shared/ui/state-panel'
@@ -18,6 +20,7 @@ const unavailableMessages: Record<string, string> = {
 
 export function LoginPage() {
   const { state, signIn, signOut } = useAuth()
+  const { state: authorizationState } = useAuthorization()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
@@ -38,6 +41,9 @@ export function LoginPage() {
   }
 
   if (state.status === 'ready') {
+    if (authorizationState.status !== 'ready') {
+      return <AuthorizationStatePage state={authorizationState} onSignOut={signOut} />
+    }
     return <Navigate replace to={canonicalTenantPath(state.context.tenantRef)} />
   }
 

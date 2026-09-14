@@ -1,13 +1,16 @@
 import { useEffect, useRef, useState } from 'react'
 import { Outlet, useParams } from 'react-router-dom'
 import { useAuth } from '@/app/auth/use-auth'
+import { useAuthorization } from '@/app/authorization/use-authorization'
 import { TenantAppShell } from '@/app/layout/tenant-app-shell'
+import { AuthorizationStatePage } from '@/app/pages/authorization-state-page'
 import { SessionStatePage } from '@/app/pages/session-state-page'
 import { tenantRouteMatches } from '@/app/router/tenant-route'
 
 export function TenantRouteBoundary() {
   const { tenantRef } = useParams<{ tenantRef: string }>()
   const { state, resolveTenantRef, signOut } = useAuth()
+  const { state: authorizationState } = useAuthorization()
   const validationInFlightRef = useRef<string | null>(null)
   const [validatedContextKey, setValidatedContextKey] = useState<string | null>(
     null,
@@ -61,6 +64,17 @@ export function TenantRouteBoundary() {
             status: 'tenant_context_unavailable',
             principalId: state.context.principalId,
           }}
+          onSignOut={signOut}
+        />
+      </div>
+    )
+  }
+
+  if (authorizationState.status !== 'ready') {
+    return (
+      <div className="px-4 py-10 sm:px-6">
+        <AuthorizationStatePage
+          state={authorizationState}
           onSignOut={signOut}
         />
       </div>

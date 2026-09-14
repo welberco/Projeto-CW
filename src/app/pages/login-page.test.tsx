@@ -64,6 +64,28 @@ describe('login page', () => {
         <LocationProbe />
       </MemoryRouter>,
       authenticatedGateway,
+      {
+        resolveProjection: () =>
+          Promise.resolve({
+            status: 'ready',
+            projection: {
+              principalId: 'user-1',
+              tenantId: 'tenant-1',
+              tenantRef: '34000000-0000-4000-8000-000000000001',
+              membershipId: 'membership-1',
+              profileId: 'profile-1',
+              profileName: 'Gestor',
+              revision: {
+                membershipVersion: 1,
+                profileVersion: 1,
+                catalogRevision: 12,
+              },
+              authorizationRevision: 'm1:p1:c12',
+              permissionCodes: [],
+              enabledEntitlements: ['maintenance'],
+            },
+          }),
+      },
     )
 
     await waitFor(() => {

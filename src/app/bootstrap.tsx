@@ -14,6 +14,7 @@ import {
 } from '@/shared/observability/release'
 import { logSafeError } from '@/shared/observability/safe-logger'
 import { createAuthGateway } from '@/infrastructure/supabase/auth-gateway'
+import { createAuthorizationGateway } from '@/infrastructure/supabase/authorization-gateway'
 import { createAppSupabaseClient } from '@/infrastructure/supabase/client'
 
 export function bootstrapApplication(
@@ -29,6 +30,7 @@ export function bootstrapApplication(
     const router = createAppRouter()
     const supabaseClient = createAppSupabaseClient(config)
     const authGateway = createAuthGateway(supabaseClient)
+    const authorizationGateway = createAuthorizationGateway(supabaseClient)
     const routerCoordinator = {
       navigateToLogin: () => router.navigate('/login', { replace: true }),
       revalidate: () => router.revalidate(),
@@ -41,6 +43,7 @@ export function bootstrapApplication(
           queryClient={queryClient}
           release={release}
           authGateway={authGateway}
+          authorizationGateway={authorizationGateway}
           routerCoordinator={routerCoordinator}
         >
           <RouterProvider router={router} />

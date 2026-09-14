@@ -10,7 +10,7 @@ W2_PLAN_COMPLETE = YES
 W2A_AUTHORIZATION_MODEL_READY = YES
 W2B_PROFILES_OVERRIDES_READY = YES
 W2C_AUTHORIZATION_ENGINE_READY = YES
-W2D_AUTHORIZATION_PROJECTION_READY = NO
+W2D_AUTHORIZATION_PROJECTION_READY = YES
 W2E_AUTHORIZATION_HARDENING_READY = NO
 AUTHORIZATION_READY = NO
 ```
@@ -534,3 +534,146 @@ generation e provider/guards de UX. W2E permanece responsável pelo hardening
 consolidado, policies/grants finais e matriz adversarial integrada. Recursos e
 RLS funcionais pertencem às waves dos módulos donos dos dados. Nenhum Supabase
 remoto, `db push`, `migration repair`, deploy, push, merge ou PR integra W2C.
+
+## W2D — projection, revision vector, provider, cache e UX
+
+### Escopo e projection self
+
+A W2D implementa exclusivamente W2-09 e W2-10 do plano aprovado. A RPC
+`public.resolve_my_authorization()` não aceita argumento de alvo: deriva o
+principal de `auth.uid()` e reconsulta os fatos atuais de usuário, tenant,
+membership, profile, catálogo, baseline, overrides e entitlements. Quando o
+contexto inteiro está disponível, devolve somente a projection self necessária
+à UX:
+
+- IDs opacos do principal, tenant, membership e profile correntes;
+- `tenant_ref`, nome de apresentação do profile e versões autoritativas;
+- permissions efetivas como códigos completos, exatos, únicos e ordenados;
+- entitlements habilitados como lista separada, única e ordenada;
+- revisão canônica `m<membership>:p<profile>:c<catalog>`.
+
+Estados indisponíveis são explícitos e fail-closed. Fora de `ready`, a RPC não
+projeta tenant, membership, profile, versões nem capabilities. Token de convite,
+e-mail, Audit, detalhes de override, ator da mutação e dados de terceiros não
+integram o contrato. Não há projection por usuário arbitrário.
+
+### Revision vector, generation e cache
+
+O vetor autoritativo é formado por `membership.version`, `profile.version` e
+`authorization_catalog_state.catalog_revision`. Ele muda quando override,
+profile/baseline ou catálogo muda, sem fanout artificial. Entitlements também
+participam da chave semântica da projection e são sempre reconsultados.
+
+O `AuthorizationProvider`, aninhado depois do `SessionProvider` e usando o mesmo
+`QueryClient`, mantém uma `authorizationGeneration` apenas em memória. A
+generation começa em `1` após a primeira projection válida e incrementa quando
+principal/contexto, vetor, conjunto efetivo, entitlement ou sinal explícito
+invalida o estado. Antes de publicar a nova projection, queries são canceladas
+e o cache sensível é removido. Estados `loading`, `refreshing`,
+`unauthenticated`, erro, mismatch ou lifecycle indisponível não expõem
+capabilities anteriores.
+
+As chaves tenant-owned agora incluem principal, tenant, membership e versão,
+profile e versão, revisão do catálogo, revisão canônica e generation local.
+Essa composição impede reutilização acidental entre usuário, tenant, perfil,
+versão ou ciclo de invalidação. Nenhuma permission, entitlement ou projection é
+persistida em `localStorage`, `sessionStorage`, cookie, URL ou JWT.
+
+### Revalidação, multitab e integração de UX
+
+A projection é reconsultada após resolução Auth/context, mudança de principal
+ou tenant, comando administrativo por `invalidateAuthorization`, foco,
+retorno de visibilidade, retorno online e a cada 30 segundos enquanto a aba
+está visível, online e autenticada. Há um único timer, removido no cleanup. Cada
+request captura sua geração/contexto; resposta antiga é descartada se uma troca
+ocorrer durante o voo.
+
+O canal `cw-authorization` transmite apenas protocolo, tipo de invalidação e
+nonce. Ele nunca transporta permissions, entitlements ou projection. Mensagens
+com campos extras ou protocolo inválido são ignoradas; a aba receptora limpa o
+estado e reconsulta a RPC. Logout explícito sinaliza `signed-out`, bloqueia a UX
+e limpa cache antes de concluir a saída. Não foi adicionado Realtime nem novo
+canal persistente.
+
+`useAuthorization` oferece checks exatos e independentes de permission e
+entitlement. `PermissionGuard` serve somente à visibilidade de UX; commands e
+RLS continuam sendo autoridade. Login, raiz e deep links tenant só liberam
+redirect, shell e conteúdo depois que sessão, contexto, rota e authorization
+projection estão simultaneamente válidos. Carregamento e indisponibilidade usam
+estados genéricos, sem enumerar internals.
+
+### Segurança, migration e types
+
+| Migration | Responsabilidade |
+| --- | --- |
+| `20260914008000_w2d_authorization_projection.sql` | Projection self, capabilities exatas, entitlements separados e revision vector canônico |
+
+A RPC é `STABLE SECURITY DEFINER` porque as tabelas autoritativas permanecem
+fechadas aos clientes. Ela fixa `search_path` vazio, qualifica objetos, possui
+owner não cliente, revoga `PUBLIC`, `anon` e `service_role` e concede apenas
+`EXECUTE` a `authenticated`. Nenhum grant direto de tabela, policy permissiva,
+bypass, wildcard, Global Admin ou `service_role` no frontend foi introduzido.
+
+`src/infrastructure/supabase/database.types.ts` foi regenerado pelo Supabase CLI
+local, sem edição manual. O diff gerado adiciona somente a assinatura pública de
+`resolve_my_authorization`; as estruturas privadas continuam ausentes dos tipos
+do browser.
+
+### Testes e evidências
+
+`supabase/tests/w2d_authorization_projection.sql` possui 27 asserts sobre
+assinatura e grants, owner e `search_path`, estados fail-closed, isolamento self,
+onze permissions exatas, entitlement separado, vetor canônico e invalidação por
+profile, override, catálogo, entitlement e bloqueio da membership. O harness
+oficial agora executa nove arquivos pgTAP.
+
+Os testes frontend cobrem parsing estrito, rejeição de projection parcial,
+wildcards e ordenação inválida; chave semântica; query keys; provider e
+generation; cancelamento/limpeza antes da troca; race A→B; invalidação de
+commands; protocolo multitab sem payload; foco, intervalo, hidden e cleanup;
+logout; entitlement; guard fail-closed; login, rota e deep link aguardando a
+projection.
+
+| Validação | Resultado |
+| --- | --- |
+| `npm run preflight:v2` inicial | `WARN`: Docker não estava visível no sandbox; branch, HEAD, worktree limpo, arquivos e toolchain passaram |
+| `npm run db:start` | `PASS`: Supabase local descartável iniciado sem expor credenciais |
+| `npm run db:reset` | `PASS`: quinze migrations W0/W1/W2A/W2B/W2C/W2D aplicadas do zero |
+| `npm run db:types` | `PASS`: tipos regenerados pelo CLI local |
+| schema lint | `PASS`: nenhum erro no schema público |
+| `npm run test:v2:db` | `PASS`: 9 arquivos, W2D 27/27 e total 379/379; `DB_SMOKE_OK` |
+| `npm run test:v2:unit` | `PASS`: 17 arquivos e 105/105 testes |
+| `npm run test:v2:e2e` | `PASS`: 6/6 Chromium |
+| `npm run typecheck` | `PASS` |
+| `npm run lint` | `PASS` |
+| `npm run build` | `PASS`: 252 módulos; aviso preexistente de chunk acima de 500 kB |
+| `git diff --check` | `PASS` |
+| `npm run verify:v2:full` pré-commit | DB, unit, E2E, typecheck, lint, build e diff-check em `PASS`; agregado `WARN` somente pelo worktree da missão ainda dirty |
+
+No primeiro pgTAP, uma expressão esperada tentou ler o catálogo sob
+`authenticated`; o valor esperado passou a ser materializado antes da troca de
+role, sem conceder acesso de produto. No frontend, o primeiro teste multitab
+mostrou que um `signed-out` remoto removia capabilities mas expunha `loading`
+até o evento Auth; o provider passou a expor `unauthenticated` imediatamente.
+Também foram corrigidos grants explícitos das fixtures temporárias e a
+introspecção dos nomes de saída da RPC. Nenhuma correção relaxou RLS, grants ou
+fail-closed.
+
+### Gate W2D e itens deferidos
+
+```text
+W2_PLAN_COMPLETE = YES
+W2A_AUTHORIZATION_MODEL_READY = YES
+W2B_PROFILES_OVERRIDES_READY = YES
+W2C_AUTHORIZATION_ENGINE_READY = YES
+W2D_AUTHORIZATION_PROJECTION_READY = YES
+W2E_AUTHORIZATION_HARDENING_READY = NO
+AUTHORIZATION_READY = NO
+```
+
+W2E permanece responsável pelo hardening consolidado, revisão final de
+policies/grants e matriz adversarial integrada. Resources, facts, RLS e
+resolvers de `OWN`, `ASSIGNED` e `TEAM` pertencem às waves dos módulos donos
+dos dados. Não foram criados módulos de Manutenção, Ativos, Fornecedores,
+Cadastros, Relatórios ou Calendário. Nenhum Supabase remoto, `db push`,
+`migration repair`, deploy, push, merge ou PR integra W2D.
