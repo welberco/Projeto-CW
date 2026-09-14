@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { createAuthorizationSignalBus } from '@/app/authorization/authorization-signal'
 
 function setup() {
@@ -27,6 +27,10 @@ function setup() {
     removeEventListener,
   }
 }
+
+afterEach(() => {
+  vi.unstubAllGlobals()
+})
 
 describe('authorization cross-tab signal bus', () => {
   it('publishes only a minimal invalidation signal without capability payloads', () => {
@@ -84,6 +88,37 @@ describe('authorization cross-tab signal bus', () => {
     expect(subscriber).toHaveBeenCalledWith('signed-out')
   })
 
+  it('rejects manipulated payloads and ignores a replayed nonce', () => {
+    const test = setup()
+    const subscriber = vi.fn()
+    test.bus.subscribe(subscriber)
+    const listener = test.getListener()
+
+    for (const data of [
+      null,
+      'signed-out',
+      { protocol: 'cw-authz-v1', type: 'unknown', nonce: 'n-1' },
+      { protocol: 'cw-authz-v1', type: 'authz-invalidated', nonce: '' },
+      { protocol: 'cw-authz-v1', type: 'authz-invalidated', nonce: 'n-2', admin: true },
+      { protocol: 'cw-authz-v1', type: 'authz-invalidated', nonce: 'n-3', tenant_id: 'tenant-b' },
+      { protocol: 'cw-authz-v1', type: 'authz-invalidated', nonce: 'n-4', actor: 'principal-b' },
+      { protocol: 'cw-authz-v1', type: 'authz-invalidated', nonce: 'n-5', permissions: ['*'] },
+    ]) {
+      listener?.(new MessageEvent('message', { data }))
+    }
+
+    const valid = {
+      protocol: 'cw-authz-v1',
+      type: 'authz-invalidated',
+      nonce: 'remote-once',
+    }
+    listener?.(new MessageEvent('message', { data: valid }))
+    listener?.(new MessageEvent('message', { data: valid }))
+
+    expect(subscriber).toHaveBeenCalledOnce()
+    expect(subscriber).toHaveBeenCalledWith('authz-invalidated')
+  })
+
   it('does not echo a local publication and cleans up listeners', () => {
     const test = setup()
     const subscriber = vi.fn()
@@ -96,5 +131,16 @@ describe('authorization cross-tab signal bus', () => {
     test.bus.close()
     expect(test.removeEventListener).toHaveBeenCalledOnce()
     expect(test.close).toHaveBeenCalledOnce()
+  })
+
+  it('degrades safely when BroadcastChannel is unavailable', () => {
+    vi.stubGlobal('BroadcastChannel', undefined)
+    const bus = createAuthorizationSignalBus()
+    const subscriber = vi.fn()
+
+    expect(() => bus.publish('authz-invalidated')).not.toThrow()
+    expect(() => bus.subscribe(subscriber)()).not.toThrow()
+    expect(() => bus.close()).not.toThrow()
+    expect(subscriber).not.toHaveBeenCalled()
   })
 })

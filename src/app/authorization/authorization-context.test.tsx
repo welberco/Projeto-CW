@@ -316,7 +316,54 @@ describe('authorization provider', () => {
     expect(screen.getByLabelText('principal')).toHaveTextContent('principal-b')
   })
 
-  it('reconsults on remote invalidation and clears immediately on remote sign-out', async () => {
+  it('cannot repopulate a stale revision after command invalidation starts a newer request', async () => {
+    let resolveStale: ((value: AuthorizationProjectionResolution) => void) | undefined
+    let resolveCurrent: ((value: AuthorizationProjectionResolution) => void) | undefined
+    const currentProjection: AuthorizationProjection = {
+      ...projection('principal-a', 'm1:p2:c12'),
+      permissionCodes: [],
+    }
+    const gateway: AuthorizationGateway = {
+      resolveProjection: vi
+        .fn()
+        .mockResolvedValueOnce({ status: 'ready', projection: projection() })
+        .mockImplementationOnce(
+          () =>
+            new Promise<AuthorizationProjectionResolution>((resolve) => {
+              resolveStale = resolve
+            }),
+        )
+        .mockImplementationOnce(
+          () =>
+            new Promise<AuthorizationProjectionResolution>((resolve) => {
+              resolveCurrent = resolve
+            }),
+        ),
+    }
+    const test = setup(gateway)
+    expect(await screen.findByText('ready')).toBeVisible()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Refresh' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Invalidate' }))
+    await waitFor(() => expect(gateway.resolveProjection).toHaveBeenCalledTimes(3))
+
+    await act(() => {
+      resolveCurrent?.({ status: 'ready', projection: currentProjection })
+      return Promise.resolve()
+    })
+    expect(screen.getByLabelText('permission')).toHaveTextContent('no')
+    expect(screen.getByLabelText('generation')).toHaveTextContent('2')
+
+    await act(() => {
+      resolveStale?.({ status: 'ready', projection: projection() })
+      return Promise.resolve()
+    })
+    expect(screen.getByLabelText('permission')).toHaveTextContent('no')
+    expect(screen.getByLabelText('generation')).toHaveTextContent('2')
+    expect(test.signals.publish).toHaveBeenCalledOnce()
+  })
+
+  it('treats every multitab message only as a revalidation trigger', async () => {
     const gateway = sequentialGateway([{ status: 'ready', projection: projection() }])
     const test = setup(gateway)
     expect(await screen.findByText('ready')).toBeVisible()
@@ -326,6 +373,11 @@ describe('authorization provider', () => {
     expect(test.signals.publish).not.toHaveBeenCalled()
 
     act(() => test.signals.emit('signed-out'))
+    await waitFor(() => expect(gateway.resolveProjection).toHaveBeenCalledTimes(3))
+    expect(screen.getByLabelText('status')).toHaveTextContent('ready')
+    expect(screen.getByLabelText('permission')).toHaveTextContent('yes')
+
+    test.rerenderSession({ status: 'unauthenticated' })
     expect(await screen.findByText('unauthenticated')).toBeVisible()
     expect(screen.getByLabelText('permission')).toHaveTextContent('no')
   })

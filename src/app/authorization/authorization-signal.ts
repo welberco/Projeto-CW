@@ -62,9 +62,16 @@ export function createAuthorizationSignalBus(
       : undefined)
   const channel = factory?.('cw-authorization')
   const listeners = new Set<(type: AuthorizationSignalType) => void>()
+  const seenRemoteNonces = new Set<string>()
 
   const handleMessage = (event: MessageEvent<unknown>) => {
     if (!isAuthorizationSignalMessage(event.data)) return
+    if (seenRemoteNonces.has(event.data.nonce)) return
+    seenRemoteNonces.add(event.data.nonce)
+    if (seenRemoteNonces.size > 100) {
+      const oldestNonce = seenRemoteNonces.values().next().value
+      if (oldestNonce !== undefined) seenRemoteNonces.delete(oldestNonce)
+    }
     for (const listener of listeners) listener(event.data.type)
   }
 
@@ -86,6 +93,7 @@ export function createAuthorizationSignalBus(
       channel?.removeEventListener('message', handleMessage)
       channel?.close()
       listeners.clear()
+      seenRemoteNonces.clear()
     },
   }
 }

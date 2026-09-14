@@ -11,8 +11,8 @@ W2A_AUTHORIZATION_MODEL_READY = YES
 W2B_PROFILES_OVERRIDES_READY = YES
 W2C_AUTHORIZATION_ENGINE_READY = YES
 W2D_AUTHORIZATION_PROJECTION_READY = YES
-W2E_AUTHORIZATION_HARDENING_READY = NO
-AUTHORIZATION_READY = NO
+W2E_AUTHORIZATION_HARDENING_READY = YES
+AUTHORIZATION_READY = YES
 ```
 
 ## W2A — modelo e catálogo estrutural
@@ -591,9 +591,9 @@ ocorrer durante o voo.
 O canal `cw-authorization` transmite apenas protocolo, tipo de invalidação e
 nonce. Ele nunca transporta permissions, entitlements ou projection. Mensagens
 com campos extras ou protocolo inválido são ignoradas; a aba receptora limpa o
-estado e reconsulta a RPC. Logout explícito sinaliza `signed-out`, bloqueia a UX
-e limpa cache antes de concluir a saída. Não foi adicionado Realtime nem novo
-canal persistente.
+estado e reconsulta a RPC. Logout explícito sinaliza `signed-out`, e o evento
+Auth autoritativo conclui a saída. Não foi adicionado Realtime nem novo canal
+persistente.
 
 `useAuthorization` oferece checks exatos e independentes de permission e
 entitlement. `PermissionGuard` serve somente à visibilidade de UX; commands e
@@ -677,3 +677,178 @@ resolvers de `OWN`, `ASSIGNED` e `TEAM` pertencem às waves dos módulos donos
 dos dados. Não foram criados módulos de Manutenção, Ativos, Fornecedores,
 Cadastros, Relatórios ou Calendário. Nenhum Supabase remoto, `db push`,
 `migration repair`, deploy, push, merge ou PR integra W2D.
+
+## W2E — hardening e security gate final
+
+### Objetivo e método
+
+A W2E executou revisão adversarial integrada de W2A–W2D sem iniciar W3 nem
+adicionar domínio. O ciclo incluiu leitura das fontes normativas, inventário de
+todas as migrations e suites W1/W2, reconstrução local, introspecção do catálogo
+PostgreSQL, ataques com dois tenants e IDs válidos conhecidos, revisão estática
+do frontend e SQL, correções mínimas, regressão dedicada e gates completos.
+
+### Threat model e attack matrix
+
+| Atacante/cenário | Ataque executado ou controle verificado | Resultado final |
+| --- | --- | --- |
+| Usuário authenticated malicioso | REST/table mutation, RPCs manipuladas e combinação inexistente | Negado por grants/RLS/commands; ausência é deny |
+| Tenant A conhecendo UUIDs de B | tenantRef, profile, membership, entitlement e commands de B | Falha genérica, sem enumeração ou efeito em B |
+| JWT ainda válido após lifecycle | app user, membership e tenant alterados no banco | Evaluator, command e projection falham imediatamente |
+| Authority/profile/entitlement alterados | baseline, override, profile version e entitlement | Estado atual do banco prevalece; cache é invalidado por revisão/generation |
+| Administrador parcial/self-escalation | ADD ALLOW, REMOVE DENY, profile e invitation mais privilegiados | Delegação exata e comparação antes/depois negam elevação |
+| Payload/browser adulterado | actor, tenant, wildcard, scope implícito e IDs target cross-tenant | Actor deriva de `auth.uid()`; tenant deriva da membership atual |
+| Aba/cache antigo | R1 atrasada após invalidação/R2, principal A→B | R1 é descartada; cache e capabilities A não reaparecem |
+| BroadcastChannel malicioso | protocolo/tipo/campos extras/admin/tenant/actor/permissions e nonce repetido | Payload rejeitado; mensagem válida é só trigger de reconsulta; replay ignorado |
+| Concorrência entre administradores | versões stale, mesmo profile/override e lock comum por tenant | Sem silent overwrite; command relê e reautoriza sob lock transacional |
+| Acesso técnico indevido | direct tables e self resolver com `service_role` | Removido; apenas quatro RPCs W1 técnicas documentadas permanecem |
+| anon/PUBLIC | tabelas, helpers e RPCs W1/W2 | Nenhuma superfície de autorização executável ou legível |
+| Combinação futura/desconhecida | wildcard, prefixo, substring e scope não catalogado | Fail-closed, sem hierarquia ou expansão |
+
+Os atacantes mínimos A–O da missão estão cobertos pela matriz acima e pelas
+suites W1E, W2A, W2B, W2C, W2D e W2E executadas em conjunto.
+
+### Findings e correções
+
+| ID | Severidade | Finding/impacto | Causa | Correção |
+| --- | --- | --- | --- | --- |
+| W2E-01 | Alta | `service_role` conservava grants diretos nas seis tabelas W1, permitindo contornar commands W2C e o boundary de Audit se a credencial técnica fosse usada fora das RPCs | Defaults do ambiente Supabase e revogações W1 não incluíam `service_role` | Migration forward-only revoga todo acesso direto; as quatro RPCs técnicas W1 permanecem |
+| W2E-02 | Média | Objetos futuros criados pelo owner das migrations em `public` herdariam grants amplos para roles de API | Default privileges iniciais do Supabase | Defaults de tables, sequences e functions em `public`/`private` foram fechados para o owner `postgres`; grants futuros passam a ser explícitos |
+| W2E-03 | Baixa | Um `signed-out` sintaticamente válido e replay de nonce podiam alterar estado de UX sem fato Auth novo ou provocar revalidações repetidas | Tipo do canal era tratado como estado, e nonces não eram deduplicados | Todo sinal virou apenas invalidação/reconsulta; evento Auth continua autoritativo; nonces remotos têm deduplicação limitada |
+| W2E-04 | Baixa | O self resolver de tenant permanecia executável por `service_role` sem necessidade | Grant default residual na function W1C | `EXECUTE` revogado de `service_role`; `authenticated` permanece o único cliente |
+
+Não foram encontrados bypasses de produção adicionais em evaluator, commands,
+projection, RLS, audit, convite ou route boundary. A tentativa de alterar defaults
+da role interna `supabase_admin` foi rejeitada pelo próprio runtime e não foi
+contornada. Objetos versionados V2 pertencem a `postgres`; criação manual fora
+da cadeia de migrations continua proibida pelo workflow.
+
+### AUTH-01, antiescalada e concorrência
+
+O evaluator resolve apenas `resource_code + action_code + scope` exatos.
+`ALLOW` forma união; `DENY OWN`, `DENY ASSIGNED` e `DENY TEAM` substituem apenas
+a combinação correspondente e não removem `ALL_TENANT`. Não existe wildcard,
+prefix matching, substring, profile-name authority ou scope hierarchy. O seed
+continua contendo somente onze combinações `core.users/core.profiles` em
+`ALL_TENANT`.
+
+As transitions elevativas são avaliadas semanticamente: ADD ALLOW, REMOVE DENY,
+profile change, unblock e invitation exigem delegabilidade e authority exata.
+Transitions redutivas preservam o guard de último administrador. Todos os onze
+commands authenticated entram por `lock_authorization_actor`, serializam pelo
+tenant, relêem app user, membership, tenant, profile e permission/entitlement,
+validam versões esperadas e escrevem Audit na mesma transação. Não foi encontrado
+lock order divergente nem TOCTOU aberto.
+
+### RLS, grants e functions
+
+As dez tabelas públicas W1/W2 têm RLS. Somente `app_users`, `tenants`,
+`tenant_memberships` e `tenant_entitlements` possuem policy SELECT estreita;
+as seis tabelas sensíveis restantes permanecem sem policies. As quatro tabelas
+privadas não são acessíveis por roles cliente. `PUBLIC` e `anon` não possuem
+table grants; `authenticated` possui apenas os quatro SELECTs necessários e
+nenhuma mutation; `service_role` não possui acesso direto a tabela W1/W2.
+
+O inventário final contém 46 functions W1/W2: 30 `SECURITY DEFINER` e 16
+`SECURITY INVOKER`. Todas pertencem a `postgres`, fixam `search_path` vazio,
+usam nomes qualificados, não usam SQL dinâmico e não têm `PUBLIC EXECUTE`.
+Helpers privados não são client-callable, salvo os dois helpers RLS W1
+explicitamente necessários para `authenticated`. As RPCs W2C authenticated não
+aceitam `actor_user_id` ou `operator_user_id`; actor é sempre `auth.uid()`.
+
+### Cross-tenant, lifecycle, entitlement e acesso direto
+
+Com Tenant A e B reais no PostgreSQL local, o usuário A viu somente seu próprio
+app user, tenant, membership e entitlement. `tenantRef` B retornou o mesmo estado
+indisponível seguro; profile B conhecido e profile inexistente produziram
+`AUTHORIZATION_OPERATION_UNAVAILABLE`. INSERT/UPDATE/DELETE diretos de catálogo,
+profiles, baselines, overrides, memberships, invitations, entitlements e Audit
+foram negados conforme os grants e suites integradas. `ALL_TENANT` permaneceu
+limitado ao tenant autoritativo.
+
+Sem renovar o JWT, bloqueio do app user/membership e suspensão do tenant
+invalidaram projection e commands. Entitlement desabilitado suprimiu baseline e
+override ALLOW do recurso condicionado, mas não criou bloqueio artificial para
+permissions `core` sem entitlement. Permission deprecated não aceitou novo
+baseline, deixou de resolver e preservou a linha histórica existente.
+
+### Projection, cache, multitab e routing
+
+`resolve_my_authorization()` continua sem argumentos, self-only, com lifecycle
+fail-closed, permission codes exatos, entitlements separados e dados mínimos.
+Nenhuma mutation usa a projection como authority. Query keys distinguem
+principal, tenant, membership, profile, vetor de revisão e generation. Testes
+provam A→B, logout, revision switch e que resposta R1 atrasada não repopula o
+estado depois de R2.
+
+O canal multitab não transporta authority e agora nem seu tipo altera estado
+diretamente: qualquer mensagem válida provoca apenas limpeza e reconsulta.
+Payloads malformados ou com campos extras são rejeitados, nonce repetido é
+ignorado, ausência de `BroadcastChannel` degrada sem crash, e listeners/timers
+são limpos em StrictMode/mount/unmount. Focus, visibility, online/offline e
+polling mantêm um único intervalo e retry limitado.
+
+Não há projection ou query cache persistido em `localStorage`, `sessionStorage`,
+IndexedDB, cookie ou persister. As ocorrências de `localStorage` fora de `src`
+pertencem ao legado V1 e não são authority W2. Deep links, tenantRef inválido/de
+outro tenant, refresh, back após logout, rota desconhecida e `/plataforma/*`
+continuam fail-closed. Global Admin não foi implementado.
+
+### Convites, Audit e non-enumeration
+
+Convite mantém token raw retornado uma vez, somente hash SHA-256 persistido,
+expiration/revoke/accepted lifecycle e profile ativo do mesmo tenant. Token
+inválido, expirado, revogado ou usado retorna resposta pública uniforme. Token,
+JWT, senha e secret não aparecem no Audit. Audit permanece append-only; actor,
+tenant, target, reason, correlation e versões são escritos na mesma transação da
+mutation, e falha não deixa evento falso de sucesso.
+
+### Migration, tipos e testes
+
+| Artefato | Finalidade |
+| --- | --- |
+| `20260914009000_w2e_authorization_hardening.sql` | Revogar superfícies diretas de `service_role`, fechar self resolver e default privileges do owner das migrations |
+| `w2e_authorization_hardening.sql` | 56 ataques/asserts integrados de RLS, grants, functions, cross-tenant, stale JWT, entitlement, AUTH-01, depreciação e Audit |
+| `authorization-signal.ts` e testes | Canal somente-invalidação, rejeição de payload e replay, fallback seguro |
+| `authorization-context.tsx` e testes | Sinal multitab nunca vira estado autoritativo; proteção contra resposta stale |
+| `supabase-local.mjs` | Migration e pgTAP W2E integrados ao reset/smoke oficial |
+
+Não houve alteração estrutural de schema público ou assinatura RPC; por isso
+`database.types.ts` permaneceu byte a byte igual e não recebeu edição manual.
+
+Evidência intermediária após as correções:
+
+| Validação | Resultado |
+| --- | --- |
+| Reset completo | `PASS`: dezesseis migrations W0–W2E |
+| Schema lint | `PASS` |
+| pgTAP W2E | `PASS`: 56/56 |
+| pgTAP total | `PASS`: 10 arquivos, 435/435; `DB_SMOKE_OK` |
+| Unit focado | `PASS`: 15/15 |
+| Unit total | `PASS`: 17 arquivos, 108/108 |
+
+Os resultados finais de E2E, typecheck, lint, build, diff-check, secret scan,
+`verify:v2:full` pré e pós-commit são registrados no relatório da missão e
+somente permitem o gate abaixo quando todos estiverem verdes.
+
+### Riscos residuais, deferred e gate final
+
+O único risco técnico conhecido não bloqueante permanece o warning preexistente
+do bundle acima de 500 kB. Os defaults internos de `supabase_admin` são
+gerenciados pela plataforma; como objetos V2 só podem nascer de migrations
+versionadas do owner `postgres`, não há vulnerabilidade W2 aberta. Permanecem
+deferidos para as waves donas dos domínios os facts/resolvers e RLS reais de
+`OWN`, `ASSIGNED` e `TEAM`. Nenhum fact, tabela ou permission fake foi criado.
+
+```text
+W2_PLAN_COMPLETE = YES
+W2A_AUTHORIZATION_MODEL_READY = YES
+W2B_PROFILES_OVERRIDES_READY = YES
+W2C_AUTHORIZATION_ENGINE_READY = YES
+W2D_AUTHORIZATION_PROJECTION_READY = YES
+W2E_AUTHORIZATION_HARDENING_READY = YES
+AUTHORIZATION_READY = YES
+```
+
+W3 não foi iniciada. Não houve acesso remoto, `db push`, `migration repair`,
+deploy, push, merge ou PR na W2E.

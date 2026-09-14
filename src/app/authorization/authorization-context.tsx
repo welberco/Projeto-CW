@@ -232,16 +232,10 @@ export function AuthorizationProvider({
   }, [clearSensitiveState, refreshAuthorization, replaceState, sessionState])
 
   useEffect(() => {
-    return signalBus.subscribe((type) => {
-      if (type === 'signed-out') {
-        ++requestGenerationRef.current
-        replaceState({ status: 'unauthenticated' })
-        void clearSensitiveState()
-        return
-      }
+    return signalBus.subscribe(() => {
       void invalidateFromSignal()
     })
-  }, [clearSensitiveState, invalidateFromSignal, replaceState, signalBus])
+  }, [invalidateFromSignal, signalBus])
 
   useEffect(() => {
     let intervalId: number | undefined
