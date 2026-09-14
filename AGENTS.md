@@ -739,3 +739,65 @@ Funcionalidade futura não deve ser implementada sem decisão explícita.
 O objetivo não é reconstruir o maior sistema possível.
 
 O objetivo é construir um **CW Manutenção V2 seguro, consistente, modular, reutilizável e comercialmente viável**, preservando espaço para a evolução futura do CW ERP sem comprometer a simplicidade e a confiabilidade da versão atual.
+
+---
+
+## 35. Contrato operacional do Codex
+
+Esta seção é normativa para missões executadas por Codex. Ela consolida a
+autonomia local sem substituir as regras de produto, arquitetura e segurança
+anteriores deste documento.
+
+### Fonte de verdade
+
+- regras de produto e negócio: `PRODUCT_SPEC.md`;
+- regras operacionais: este `AGENTS.md`;
+- arquitetura congelada: `docs/ARQUITETURA-TECNICA-V2.md`;
+- migração: documentos aprovados `docs/MIGRACAO-V1-V2-*.md`;
+- implementação W1: `docs/IMPLEMENTACAO-V2-W1.md`;
+- etapas posteriores: apenas documentos específicos já aprovados.
+
+Arquivos não rastreados ou rascunhos não se tornam fonte oficial por existirem
+no worktree. Eles não devem ser editados, assumidos como aprovados ou incluídos
+em commits sem instrução explícita.
+
+### Ciclo padrão de uma missão
+
+Quando aplicável, Codex deve: ler estas regras e os documentos relevantes;
+inspecionar branch e worktree; analisar o código existente; planejar
+internamente; implementar somente o escopo aprovado; executar os gates;
+investigar e corrigir falhas causadas pela missão; repetir validações; revisar
+diff, regressões e segurança; atualizar documentação; executar os gates finais;
+e criar commit local quando a missão o autorizar. O relatório final deve usar o
+formato em `docs/DEVELOPMENT-WORKFLOW.md`.
+
+### Autonomia local permitida
+
+Dentro do escopo aprovado, Codex pode ler, criar e editar arquivos; executar
+comandos npm, Vitest, Playwright, lint, typecheck e build; usar Supabase,
+pgTAP, migrations e reset exclusivamente no ambiente local descartável;
+revisar diffs; fazer `git add`; criar commits locais; e corrigir falhas
+causadas pela própria missão. Um reset de banco local só é permitido quando
+compatível com o escopo e nunca pode atingir ambiente compartilhado.
+
+### Ações que exigem aprovação explícita
+
+Não executar escrita em Supabase remoto, novo `supabase link`, `db push`,
+`migration repair` remoto, deploy, ação em produção, operação destrutiva em
+dados persistentes, reset de ambiente compartilhado, uso ou alteração de
+secrets/credenciais, force push, rebase destrutivo, merge em `main`, mudança de
+decisão arquitetural congelada, relaxamento de RLS, bypass de autorização,
+`service_role` no frontend ou outra ação irreversível relevante.
+
+### Segurança e Git
+
+Nunca versionar `.env.local` ou imprimir secrets. Browser, URL, cache e JWT não
+são autoridade final para tenant, usuário, papel ou estado mutável:
+`auth.uid()` e fatos atuais do banco, RLS, grants mínimos e comportamento
+fail-closed permanecem obrigatórios. UI nunca é a única camada de autorização.
+
+Usar a branch corrente aprovada; nunca trocar para `main` sem instrução;
+inspecionar o status antes e depois; não fazer push automaticamente; e usar
+mensagens de commit semânticas. Um worktree pode permanecer dirty somente por
+artefato preexistente fora de escopo; ele deve ficar fora do stage e ser
+informado no relatório final.

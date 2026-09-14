@@ -52,3 +52,11 @@ A versão v2 preserva as demandas existentes como solicitações e acrescenta:
 5. Valide login, criação de solicitação, geração/conclusão de OS e acesso com dois empreendimentos diferentes.
 
 O frontend v2 não deve ser publicado antes da migração SQL, pois os novos módulos dependem das novas tabelas e funções.
+
+## Fluxo de desenvolvimento V2
+
+As regras normativas do repositório estão em [AGENTS.md](AGENTS.md) e o fluxo
+operacional está em [docs/DEVELOPMENT-WORKFLOW.md](docs/DEVELOPMENT-WORKFLOW.md).
+Antes de uma missão, execute `npm run preflight:v2`. Para os gates recorrentes,
+execute `npm run verify:v2`; use `npm run verify:v2:full` quando o Supabase local
+já estiver disponível e a execução do gate de banco for obrigatória.
