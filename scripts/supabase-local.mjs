@@ -26,14 +26,17 @@ const expectedMigrationVersions = [
   '20260910002000',
   '20260910003000',
   '20260910004000',
+  '20260914000000',
+  '20260914001000',
 ]
-const expectedW1ATables = [
+const expectedPublicTables = [
   'app_users',
   'tenants',
   'tenant_memberships',
   'tenant_invitations',
   'tenant_entitlements',
   'audit_events',
+  'permission_catalog',
 ]
 const supportedCommands = new Set(['start', 'stop', 'reset', 'types', 'smoke'])
 
@@ -112,7 +115,8 @@ if (command !== 'stop') {
 
 switch (command) {
   case 'start':
-    runLocal(['start'])
+    runLocal(['start'], { capture: true })
+    process.stdout.write('Supabase local iniciado sem expor credenciais.\n')
     break
   case 'stop':
     runLocal(['stop'])
@@ -156,7 +160,7 @@ switch (command) {
       { capture: true },
     )
 
-    for (const tableName of expectedW1ATables) {
+    for (const tableName of expectedPublicTables) {
       const createTablePattern = new RegExp(
         `CREATE\\s+TABLE(?:\\s+IF\\s+NOT\\s+EXISTS)?\\s+(?:"?public"?\\.)"?${tableName}"?\\s*\\(`,
         'iu',
@@ -176,10 +180,11 @@ switch (command) {
       'supabase/tests/w1b_auth_bootstrap_invitations.sql',
       'supabase/tests/w1c_tenant_context.sql',
       'supabase/tests/w1e_identity_tenant_hardening.sql',
+      'supabase/tests/w2a_authorization_catalog.sql',
     ])
 
     process.stdout.write(
-      'DB_SMOKE_OK: migrations W0/W1A/W1B/W1C aplicadas, schema esperado presente e testes pgTAP W1A-W1E aprovados.\n',
+      'DB_SMOKE_OK: migrations W0/W1/W2A aplicadas, schema esperado presente e testes pgTAP W1A-W2A aprovados.\n',
     )
     break
   }

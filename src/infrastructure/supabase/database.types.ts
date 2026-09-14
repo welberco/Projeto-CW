@@ -96,6 +96,57 @@ export type Database = {
           },
         ]
       }
+      permission_catalog: {
+        Row: {
+          action_code: string
+          code: string
+          created_at: string
+          deprecated_at: string | null
+          description_key: string | null
+          id: string
+          label_key: string
+          module_code: string
+          required_entitlement_key: string | null
+          resource_code: string
+          scope: Database["public"]["Enums"]["authorization_scope"]
+          status: string
+          tenant_delegable: boolean
+          updated_at: string
+        }
+        Insert: {
+          action_code: string
+          code: string
+          created_at?: string
+          deprecated_at?: string | null
+          description_key?: string | null
+          id: string
+          label_key: string
+          module_code: string
+          required_entitlement_key?: string | null
+          resource_code: string
+          scope: Database["public"]["Enums"]["authorization_scope"]
+          status?: string
+          tenant_delegable?: boolean
+          updated_at?: string
+        }
+        Update: {
+          action_code?: string
+          code?: string
+          created_at?: string
+          deprecated_at?: string | null
+          description_key?: string | null
+          id?: string
+          label_key?: string
+          module_code?: string
+          required_entitlement_key?: string | null
+          resource_code?: string
+          scope?: Database["public"]["Enums"]["authorization_scope"]
+          status?: string
+          tenant_delegable?: boolean
+          updated_at?: string
+        }
+        Relationships: []
+      }
       tenant_entitlements: {
         Row: {
           created_at: string
@@ -391,7 +442,7 @@ export type Database = {
       }
     }
     Enums: {
-      [_ in never]: never
+      authorization_scope: "OWN" | "ASSIGNED" | "TEAM" | "ALL_TENANT"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -518,6 +569,8 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      authorization_scope: ["OWN", "ASSIGNED", "TEAM", "ALL_TENANT"],
+    },
   },
 } as const
