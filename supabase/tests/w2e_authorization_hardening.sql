@@ -20,7 +20,8 @@ where (
     namespace.nspname = 'private'
     and procedure.proname not in (
       'append_audit', 'append_history', 'jsonb_has_forbidden_history_keys',
-      'prepare_audit_event', 'reject_history_mutation'
+      'prepare_audit_event', 'reject_history_mutation',
+      'enqueue_event', 'jsonb_has_forbidden_event_keys', 'protect_outbox_event'
     )
   )
    or (

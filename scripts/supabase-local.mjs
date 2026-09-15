@@ -37,6 +37,7 @@ const expectedMigrationVersions = [
   '20260914008000',
   '20260914009000',
   '20260915000000',
+  '20260915001000',
 ]
 const expectedPublicTables = [
   'app_users',
@@ -51,6 +52,7 @@ const expectedPublicTables = [
   'tenant_permission_overrides',
   'history_entries',
 ]
+const expectedPrivateTables = ['outbox_events']
 const supportedCommands = new Set(['start', 'stop', 'reset', 'types', 'smoke'])
 
 const command = process.argv[2]
@@ -157,6 +159,7 @@ switch (command) {
   }
   case 'smoke': {
     runLocal(['db', 'lint', '--local', '--schema', 'public', '--level', 'error'])
+    runLocal(['db', 'lint', '--local', '--schema', 'private', '--level', 'error'])
 
     const migrations = runLocal(['migration', 'list', '--local'], {
       capture: true,
@@ -184,6 +187,22 @@ switch (command) {
       }
     }
 
+    const privateSchema = runLocal(
+      ['db', 'dump', '--local', '--schema', 'private'],
+      { capture: true },
+    )
+
+    for (const tableName of expectedPrivateTables) {
+      const createTablePattern = new RegExp(
+        `CREATE\\s+TABLE(?:\\s+IF\\s+NOT\\s+EXISTS)?\\s+(?:"?private"?\\.)"?${tableName}"?\\s*\\(`,
+        'iu',
+      )
+
+      if (!createTablePattern.test(privateSchema)) {
+        fail(`Tabela W3B private.${tableName} ausente no banco local.`)
+      }
+    }
+
     runLocal([
       'test',
       'db',
@@ -199,10 +218,11 @@ switch (command) {
       'supabase/tests/w2d_authorization_projection.sql',
       'supabase/tests/w2e_authorization_hardening.sql',
       'supabase/tests/w3a_audit_history.sql',
+      'supabase/tests/w3b_event_outbox.sql',
     ])
 
     process.stdout.write(
-      'DB_SMOKE_OK: migrations W0/W1/W2A/W2B/W2C/W2D/W2E/W3A aplicadas, schema esperado presente e testes pgTAP W1A-W3A aprovados.\n',
+      'DB_SMOKE_OK: migrations W0/W1/W2A/W2B/W2C/W2D/W2E/W3A/W3B aplicadas, schema esperado presente e testes pgTAP W1A-W3B aprovados.\n',
     )
     break
   }

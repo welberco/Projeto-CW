@@ -179,3 +179,124 @@ W3D_PROCESSING_READY = NO
 W3E_HARDENING_READY = NO
 W3_INFRASTRUCTURE_READY = NO
 ```
+
+## W3B — Event Model e Transactional Outbox
+
+### Estado e escopo
+
+A W3B implementa somente o evento interno persistido e a garantia de
+Transactional Outbox. O registro de `private.outbox_events` é simultaneamente o
+fato Event e a unidade durável que será processada futuramente; não existe Event
+Store paralelo e as tabelas de domínio continuam sendo a source of truth.
+
+Permanecem fora desta subwave idempotência de command/handler, registry
+operacional, claim, lease, fencing, retry, dead-letter runtime, requeue, worker,
+scheduler, filas externas, webhooks e Notifications.
+
+### Envelope físico
+
+`private.outbox_events` contém:
+
+- identidade e contrato: `event_id`, `event_type`, `event_version` e
+  `occurred_at` atribuído pelo banco;
+- escopo tenant-only: `scope_kind = tenant` e `tenant_id` obrigatório com FK
+  restritiva; eventos de plataforma permanecem deferred;
+- aggregate opcional e coerente: type/id juntos e version positiva quando
+  informada;
+- provenance: actor humano/técnico/sistema, source controlada, command,
+  correlation e causation;
+- `payload` factual e `metadata` técnica, ambos objetos JSON e limitados a 64
+  KiB combinados;
+- estado técnico mínimo e inerte: `status`, `attempt_count` e
+  `next_attempt_at`. Nenhuma transition boundary ou execução existe na W3B.
+
+O tipo segue `<bounded_context>.<aggregate>.<past_tense_event>` em lowercase
+snake_case e `event_version` é positiva. O helper não aceita timestamp, scope,
+status ou handler como parâmetros: esses fatos são fixados no banco ou ficam
+fora desta wave.
+
+### Segurança e minimização
+
+A tabela está no schema `private`, com RLS habilitada, nenhuma policy e nenhum
+grant para `PUBLIC`, `anon`, `authenticated` ou `service_role`. Os helpers W3B
+são `SECURITY INVOKER`, owner `postgres`, `search_path` vazio, SQL estático e
+sem EXECUTE para roles cliente ou service role.
+
+`private.enqueue_event(...)` é somente um boundary interno para commands
+confiáveis. O tenant fica fora do payload e actors humanos precisam possuir
+vínculo autoritativo com o tenant. Actors técnicos/sistema exigem `actor_ref` e
+não podem fingir `Application User`. Platform actor permanece deferred.
+
+Payload e metadata rejeitam recursivamente chaves evidentes de secrets e chaves
+que tentem redefinir envelope, tenant, actor, authority, source, handler,
+capability ou destino privilegiado. Dumps explícitos de row também são
+rejeitados. A defesa estrutural não substitui a allowlist semântica obrigatória
+de cada evento/version definida pelo command/contrato consumidor futuro.
+
+### Imutabilidade e estado técnico
+
+O trigger `private.protect_outbox_event` compara a representação integral da
+row e permite alteração somente dos três campos técnicos mínimos. Event ID,
+type/version, timestamp, tenant, aggregate, actor, source, command, correlation,
+causation, payload e metadata são imutáveis. DELETE e TRUNCATE são rejeitados.
+
+Os índices criados são o índice parcial de ordenação de pendentes por
+`(next_attempt_at, occurred_at, event_id)` e o índice mínimo de operabilidade por
+`(status, event_type, occurred_at)`. Sua existência não implementa claim nem
+qualquer comportamento W3D.
+
+### Integração transacional mínima
+
+`public.create_tenant_profile` é o command administrativo real escolhido para a
+prova W3B, sem mudar assinatura, grants ou regras de autorização. Sua matriz de
+effects é:
+
+| Efeito | Contrato |
+| --- | --- |
+| Domain mutation | criação tenant-bound do Perfil |
+| Audit | obrigatório: `authorization.profile_created` |
+| History | N/A: não há timeline funcional de domínio nesta operação |
+| Event/Outbox | obrigatório: `authorization.profile.created` |
+| Idempotency | N/A nesta subwave; W3C |
+
+O command gera um `command_id` no boundary confiável e o compartilha entre
+Audit e Event. Mutation, Audit e enqueue executam na mesma função/transação
+PostgreSQL; não existe dual-write application-side nem publicação pós-commit.
+Falha de qualquer escrita obrigatória propaga erro e reverte todas as anteriores.
+
+### Testes e regressões
+
+`supabase/tests/w3b_event_outbox.sql` verifica schema, constraints, FK, índices,
+RLS, policies, grants, owner/search path, absence de SECURITY DEFINER novo,
+tenant/actor/source, naming/version, correlation/causation, JSON, limite combinado,
+chaves proibidas, imutabilidade factual, acesso negado e ausência das estruturas
+W3C/W3D.
+
+A integração real comprova Domain + Audit + Outbox no mesmo command, History
+explicitamente N/A, rollback da Domain/Audit quando o Event obrigatório falha e
+ausência de Audit/Event quando a mutation falha. As suítes W1/W2/W3A continuam
+no mesmo smoke para regressão integral.
+
+Validação efetiva em Supabase local: reset completo com 18 migrations, schema
+lint sem findings, 574/574 asserts pgTAP em 12 arquivos (72 da W3B), 108/108
+testes unitários em 17 arquivos e 6/6 E2E. Typecheck, lint, build e todos os
+subgates de `verify:v2:full` passaram. O resultado agregado do full gate é
+`WARN` somente porque o worktree da implementação permanece intencionalmente
+dirty e sem commit.
+
+### Deferred e gate
+
+- W3C: `command_idempotency`, `event_handler_receipts`, schemas/registry de
+  consumers e contratos TypeScript;
+- W3D: campos e boundaries de claim/lease/fencing, handler resolution,
+  processing, retry, dead-letter e requeue;
+- W3E: hardening adversarial integrado e gate final da infraestrutura W3.
+
+```ini
+W3A_AUDIT_HISTORY_READY = YES
+W3B_EVENT_OUTBOX_READY = YES
+W3C_IDEMPOTENCY_HANDLER_READY = NO
+W3D_DELIVERY_RUNTIME_READY = NO
+W3E_HISTORY_OUTBOX_HARDENING_READY = NO
+W3_INFRASTRUCTURE_READY = NO
+```
