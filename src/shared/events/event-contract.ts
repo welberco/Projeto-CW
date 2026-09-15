@@ -17,6 +17,11 @@ export interface DomainEvent<
   readonly commandId: string
   readonly correlationId: string
   readonly causationId?: string
+  readonly aggregate?: Readonly<{
+    type: string
+    id: string
+    version?: number
+  }>
   readonly payload: TPayload
   readonly metadata: Readonly<Record<string, unknown>>
 }
@@ -27,6 +32,10 @@ export interface OutboxEnvelope<TEvent extends DomainEvent = DomainEvent> {
     status: 'pending' | 'processing' | 'processed' | 'dead_letter'
     attemptCount: number
     nextAttemptAt: string
+    claimedBy?: string
+    leaseExpiresAt?: string
+    leaseToken?: string
+    fencingToken?: number
   }>
 }
 
@@ -125,6 +134,72 @@ export async function semanticFingerprintSha256(
   return Array.from(new Uint8Array(digest), (byte) =>
     byte.toString(16).padStart(2, '0'),
   ).join('')
+}
+
+export interface RetryPolicy {
+  readonly baseSeconds: number
+  readonly maxSeconds: number
+  readonly jitterPercent: number
+}
+
+export function computeRetryDelaySeconds(
+  attemptInCycle: number,
+  jitterUnit: number,
+  policy: RetryPolicy,
+): number {
+  if (!Number.isInteger(attemptInCycle) || attemptInCycle < 1) {
+    throw new TypeError('Retry attempt must be a positive integer.')
+  }
+  if (!Number.isFinite(jitterUnit) || jitterUnit < 0 || jitterUnit > 1) {
+    throw new TypeError('Retry jitter unit must be between zero and one.')
+  }
+  if (
+    !Number.isInteger(policy.baseSeconds) ||
+    !Number.isInteger(policy.maxSeconds) ||
+    policy.baseSeconds < 1 ||
+    policy.maxSeconds < policy.baseSeconds ||
+    !Number.isInteger(policy.jitterPercent) ||
+    policy.jitterPercent < 0 ||
+    policy.jitterPercent > 100
+  ) {
+    throw new TypeError('Invalid retry policy.')
+  }
+
+  const exponential = Math.min(
+    policy.maxSeconds,
+    policy.baseSeconds * 2 ** (attemptInCycle - 1),
+  )
+  const jitter = policy.jitterPercent / 100
+
+  return exponential * (1 + jitter * (2 * jitterUnit - 1))
+}
+
+const redactedDeliveryError = 'Sensitive worker error details were redacted.'
+const credentialAssignmentPattern =
+  /(?:^|[?&;\s,])(?:x[-_](?:amz|goog)[-_])?(?:access[_-]?token|refresh[_-]?token|id[_-]?token|api[_-]?key|apikey|authorization|credential|token|signature|sig|secret|password|passwd)\s*[:=]/iu
+const rawJwtPattern =
+  /(?:^|[^a-z0-9_-])eyj[a-z0-9_-]{4,}\.[a-z0-9_-]{4,}\.[a-z0-9_-]{4,}(?:$|[^a-z0-9_-])/iu
+const unsafeErrorPattern =
+  /(?:^|[\s:=])bearer\s+[a-z0-9._~+/-]+|service[_-]?role\s*[:=]|postgres(?:ql)?:\/\/|stack[\s_-]?trace/iu
+
+export function sanitizeDeliveryError(message: string): string {
+  const normalized = message.trim().replace(/[\r\n\t]+/gu, ' ')
+  if (
+    normalized.length < 1 ||
+    normalized.length > 500
+  ) {
+    throw new TypeError('Unsafe delivery error.')
+  }
+
+  if (
+    unsafeErrorPattern.test(normalized) ||
+    rawJwtPattern.test(normalized) ||
+    credentialAssignmentPattern.test(normalized)
+  ) {
+    return redactedDeliveryError
+  }
+
+  return normalized
 }
 
 type EventContract = Readonly<{

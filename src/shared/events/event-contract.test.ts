@@ -2,7 +2,9 @@ import { describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 import {
   canonicalizeSemanticInput,
+  computeRetryDelaySeconds,
   createHandlerRegistry,
+  sanitizeDeliveryError,
   semanticFingerprintSha256,
   type EventHandler,
   type OutboxEnvelope,
@@ -181,6 +183,65 @@ describe('W3C allowlisted handler contract', () => {
 
     expect(() => createHandlerRegistry([contract, contract])).toThrow(
       'Duplicate event contract: authorization.profile.created@1',
+    )
+  })
+})
+
+describe('W3D retry and safe-error contract', () => {
+  const policy = { baseSeconds: 2, maxSeconds: 10, jitterPercent: 20 }
+
+  it('applies capped exponential backoff with deterministic jitter bounds', () => {
+    expect(computeRetryDelaySeconds(1, 0, policy)).toBe(1.6)
+    expect(computeRetryDelaySeconds(2, 0.5, policy)).toBe(4)
+    expect(computeRetryDelaySeconds(4, 1, policy)).toBe(12)
+  })
+
+  it('rejects invalid policy inputs instead of creating an unbounded retry', () => {
+    expect(() => computeRetryDelaySeconds(0, 0.5, policy)).toThrow()
+    expect(() => computeRetryDelaySeconds(1, 1.1, policy)).toThrow()
+    expect(() =>
+      computeRetryDelaySeconds(1, 0.5, { ...policy, jitterPercent: 101 }),
+    ).toThrow()
+  })
+
+  it('normalizes operational errors and enforces the 500 character boundary', () => {
+    expect(sanitizeDeliveryError(' temporary\nprovider failure ')).toBe(
+      'temporary provider failure',
+    )
+    expect(() => sanitizeDeliveryError(`x${'y'.repeat(500)}`)).toThrow(
+      'Unsafe delivery error.',
+    )
+  })
+
+  it.each([
+    'Authorization: Bearer synthetic-token-value',
+    'eyJhbGciOiJub25lIn0.eyJzdWIiOiJzeW50aGV0aWMifQ.synthetic-signature',
+    'https://storage.example.invalid/object?X-Amz-Signature=synthetic-signature',
+    'https://api.example.invalid/callback?access_token=synthetic-access',
+    'refresh_token=synthetic-refresh',
+    'id_token: synthetic-id',
+    'api_key=synthetic-api-key',
+    'apikey: synthetic-apikey',
+    'authorization=synthetic-authorization',
+    'token=synthetic-token',
+    'signature=synthetic-signature',
+    'sig=synthetic-sig',
+    'secret=synthetic-secret',
+    'password=synthetic-password',
+    'passwd: synthetic-passwd',
+  ])('redacts credential-shaped error material: %s', (message) => {
+    expect(sanitizeDeliveryError(message)).toBe(
+      'Sensitive worker error details were redacted.',
+    )
+  })
+
+  it('preserves similar operational wording without copying arbitrary credentials', () => {
+    expect(
+      sanitizeDeliveryError(
+        'Token bucket exhausted; signature validation failed during secret rotation.',
+      ),
+    ).toBe(
+      'Token bucket exhausted; signature validation failed during secret rotation.',
     )
   })
 })

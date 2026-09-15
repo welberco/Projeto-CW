@@ -757,6 +757,51 @@ export type Database = {
           profile_version: number
         }[]
       }
+      claim_outbox_batch: {
+        Args: { batch_size?: number; worker_identity: string }
+        Returns: {
+          actor_kind: string
+          actor_ref: string
+          actor_user_id: string
+          aggregate_id: string
+          aggregate_type: string
+          aggregate_version: number
+          attempt_count: number
+          causation_id: string
+          claimed_by: string
+          command_id: string
+          consumer_name: string
+          correlation_id: string
+          event_id: string
+          event_type: string
+          event_version: number
+          fencing_token: number
+          handler_name: string
+          handler_version: number
+          lease_expires_at: string
+          lease_token: string
+          metadata: Json
+          occurred_at: string
+          payload: Json
+          scope_kind: string
+          source: string
+          tenant_id: string
+        }[]
+      }
+      complete_outbox_event: {
+        Args: {
+          current_fencing_token: number
+          current_lease_token: string
+          handler_result?: Json
+          handler_result_version: number
+          target_event_id: string
+          worker_identity: string
+        }
+        Returns: {
+          receipt_id: string
+          receipt_replayed: boolean
+        }[]
+      }
       create_tenant_invitation: {
         Args: {
           correlation_id?: string
@@ -833,6 +878,22 @@ export type Database = {
           invite_ref: string
         }[]
       }
+      fail_outbox_event: {
+        Args: {
+          current_fencing_token: number
+          current_lease_token: string
+          failure_class: string
+          failure_code: string
+          failure_message: string
+          target_event_id: string
+          worker_identity: string
+        }
+        Returns: {
+          applied_backoff_seconds: number
+          delivery_status: string
+          next_eligible_at: string
+        }[]
+      }
       invite_tenant_user: {
         Args: {
           command_reason: string
@@ -846,6 +907,20 @@ export type Database = {
           command_correlation_id: string
           invitation_token: string
           invite_ref: string
+        }[]
+      }
+      read_profile_created_origin: {
+        Args: {
+          current_fencing_token: number
+          current_lease_token: string
+          target_event_id: string
+          worker_identity: string
+        }
+        Returns: {
+          authoritative_profile_id: string
+          authoritative_profile_status: string
+          authoritative_profile_version: number
+          authoritative_tenant_id: string
         }[]
       }
       resolve_my_authorization: {

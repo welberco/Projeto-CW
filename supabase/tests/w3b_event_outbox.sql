@@ -170,13 +170,15 @@ select is(
     where table_schema = 'private'
       and table_name = 'outbox_events'
       and column_name in (
-        'claimed_by', 'claimed_at', 'lease_expires_at', 'lease_token',
-        'processed_at', 'last_error_class', 'last_error_code',
-        'last_error_message', 'handler_name', 'handler_version', 'requeue_count'
+        'event_id', 'event_type', 'event_version', 'occurred_at',
+        'scope_kind', 'tenant_id', 'aggregate_type', 'aggregate_id',
+        'aggregate_version', 'actor_kind', 'actor_user_id', 'actor_ref',
+        'source', 'command_id', 'correlation_id', 'causation_id',
+        'payload', 'metadata'
       )
   ),
-  0::bigint,
-  'W3B does not anticipate W3D claim lease handler retry or requeue state'
+  18::bigint,
+  'all W3B persisted Event fact columns remain present after delivery evolution'
 );
 
 select is(
@@ -185,10 +187,10 @@ select is(
     from pg_catalog.pg_class as relation
     join pg_catalog.pg_namespace as namespace on namespace.oid = relation.relnamespace
     where namespace.nspname = 'private'
-      and relation.relname = 'worker_handler_controls'
+      and relation.relname = 'outbox_events'
   ),
-  0::bigint,
-  'W3B and W3C do not create the W3D handler control table'
+  1::bigint,
+  'the W3B outbox remains the single persisted event record'
 );
 
 -- Two tenant actors prove authoritative tenant binding.
@@ -541,12 +543,12 @@ select throws_ok(
   'payload plus metadata above the combined 64 KiB limit is rejected'
 );
 
--- Event facts are immutable while the minimal processing fields are structurally separate.
+-- Event facts are immutable while technical scheduling remains structurally separate.
 select lives_ok(
   $$ update private.outbox_events
-     set status = 'processing', attempt_count = 1, next_attempt_at = statement_timestamp()
+     set next_attempt_at = statement_timestamp()
      where event_id = (select id from w3b_refs where key = 'event_a') $$,
-  'only the minimum processing fields may change through the owner path'
+  'a technical scheduling field may change through the owner path'
 );
 
 select throws_ok(

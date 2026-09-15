@@ -424,3 +424,153 @@ W3D_DELIVERY_RUNTIME_READY = NO
 W3E_HISTORY_OUTBOX_HARDENING_READY = NO
 W3_INFRASTRUCTURE_READY = NO
 ```
+
+## W3D — Delivery Runtime
+
+### Estado e garantia
+
+A W3D implementa o runtime de entrega exclusivamente no PostgreSQL/Supabase
+local e um runner Node testável. A garantia é **at-least-once delivery**. Não há
+promessa de exactly-once distribuído: proteção contra duplicação combina Outbox
+persistida, claim com lease/fencing, receipt W3C e transições condicionais.
+Domain tables continuam source of truth e a Outbox não é Event Store.
+
+### Estado técnico da Outbox
+
+`private.outbox_events` preserva integralmente o fato W3B e acrescenta somente
+estado operacional mutável:
+
+- `claimed_by`, `claimed_at`, `lease_expires_at` e `lease_token`;
+- `fencing_token` monotônico;
+- `processed_at`, `last_failed_at` e `dead_lettered_at`;
+- `last_error_class`, `last_error_code` e `last_error_message` sanitizada;
+- `requeue_count`, preservando contadores entre ciclos de reprocessamento.
+
+Os estados continuam `pending`, `processing`, `processed` e `dead_letter`.
+Checks estruturais impedem lease parcial ou timestamp terminal incompatível. O
+trigger de imutabilidade continua rejeitando qualquer mudança em identidade,
+tipo, versão, tenant, aggregate, actor, source, command, correlation, causation,
+payload ou metadata.
+
+### Handler controls e segurança
+
+`private.worker_handler_controls` associa apenas `event_type + event_version`
+conhecido a consumer/handler/version compilados, kill switch e política limitada
+de lease/retry. A entrada inicial permite somente
+`authorization.profile.created@1`. A tabela não carrega módulo, SQL ou
+capability executável; configuração em banco pode desabilitar contrato conhecido,
+mas não criar código no runner.
+
+A role `cw_worker` é `NOLOGIN` e não possui grant de tabela. Ela recebe EXECUTE
+somente em quatro boundaries públicas específicas. O owner local `postgres`
+pode assumir essa role para o runner; `PUBLIC`, `anon`, `authenticated` e
+`service_role` não podem invocar as boundaries. Helpers privados continuam sem
+EXECUTE para worker/cliente, com owner controlado, `search_path` vazio e SQL
+estático. `supabase_admin` recebe EXECUTE específico apenas para migrations e
+pgTAP locais, sem grant de tabela.
+
+### Claim, lease e fencing
+
+`public.claim_outbox_batch(worker_identity, batch_size)` valida worker e limita o
+batch a 1–100. A transação curta:
+
+1. terminaliza contrato desconhecido e tentativa já esgotada elegível;
+2. filtra handler habilitado, `pending` vencido ou `processing` com lease expirada;
+3. ordena por `next_attempt_at`, `occurred_at`, `event_id`;
+4. usa `FOR UPDATE SKIP LOCKED`;
+5. incrementa `attempt_count` e `fencing_token`;
+6. grava worker, timestamps do banco e lease token UUID novo;
+7. retorna somente envelope, estado de claim e identidade allowlisted necessária.
+
+Lease válida não pode ser roubada. Após expiração, novo claim conserva o mesmo
+evento, cria token novo e avança o fence. Ack/fail exigem simultaneamente event,
+worker, lease token, fence, estado `processing` e lease válida; worker stale falha
+com `OUTBOX_LEASE_STALE`.
+
+### Registry, authoritative reread, receipt e ack
+
+O runner `scripts/w3d-local-runner.mjs` reutiliza
+`createHandlerRegistry` da W3C. A allowlist compilada valida tipo/versão e schema
+Zod, confere consumer/handler/version retornados pelo controle e fornece
+capability fixa `authorization.profile.read`. Payload não escolhe handler,
+consumer, tenant, capability ou SQL.
+
+Para o evento real integrado, `public.read_profile_created_origin` valida a
+lease/fence e relê `public.tenant_profiles` usando tenant e aggregate do evento
+persistido. O payload é validado como evidência, mas não autoriza nem substitui
+essa releitura. O handler atual é uma projection/probe sem mutation de domínio.
+
+`public.complete_outbox_event` relê controle autoritativo, reutiliza
+`private.record_event_handler_receipt` e grava receipt + ack na mesma transação.
+Receipt existente torna redelivery um no-op lógico e devolve o resultado
+original. O ack muda apenas estado técnico e requer fence atual.
+
+### Failure, retry e dead-letter
+
+`public.fail_outbox_event` aceita somente classes controladas `retryable`,
+`non_retryable`, `poison_event` e `unsupported_event`, código estável e mensagem
+sanitizada de até 500 caracteres. Bearer, JWT cru, credenciais em query string
+(incluindo signed URLs genéricas), assignments de token/key/signature/secret e
+dumps reconhecíveis são substituídos integralmente por uma mensagem operacional
+genérica; entrada vazia ou acima do limite é rejeitada. O texto sensível original,
+payload e erro bruto não são persistidos nem enviados a serviço externo.
+
+Para tentativa retryable dentro do limite:
+
+```text
+base = min(backoff_max_seconds,
+           backoff_base_seconds * 2^(attempt_in_cycle - 1))
+jitter_factor = 1 + jitter_percent/100 * (2*jitter_unit - 1)
+delay = max(0, base * jitter_factor)
+```
+
+`jitter_unit` é determinístico por `event_id + fencing_token`, e o relógio do
+banco define `next_attempt_at`. A configuração inicial usa lease 30 s, máximo 3
+tentativas por ciclo, base 1 s, teto 60 s e jitter ±20%. Falha não retryable,
+poison/unsupported ou retry esgotado entra em `dead_letter`; claim automático
+cessa.
+
+### Reprocessamento controlado
+
+`private.requeue_dead_letter` é invoker, privado e sem grant ao worker. Exige
+evento terminal, handler habilitado, actor técnico válido, reason e correlation.
+A operação escreve Audit oficial `infrastructure.outbox.requeued`, incrementa
+`requeue_count`, preserva tentativas anteriores e abre um novo ciclo limitado;
+o fato original permanece byte-a-byte equivalente fora do estado técnico. Não
+há UI administrativa, endpoint tenant ou bypass de receipt/fencing.
+
+### Runner e validação
+
+O runner executa uma passagem local (`npm run ops:w3d:run-once`), sem daemon,
+deploy, provider, fila externa ou secret. O teste de runner usa operação real de
+criação de Perfil e cobre sucesso, falha transitória seguida de sucesso,
+esgotamento, dead-letter, poison event e inspeção direta do valor persistido por
+`cw_worker -> fail_outbox_event`. Texto operacional é preservado, enquanto Bearer,
+JWT cru, signed URL, access token, API key, signature, secret e password sintéticos
+convergem para a mensagem genérica sem copiar o material original. Failure
+injection é dependência local do teste e nunca vem de evento/payload.
+
+Validação efetiva em Supabase estritamente local: reset completo com 20
+migrations, schema lint público/privado sem findings, 729/729 asserts pgTAP em
+14 arquivos (77 da W3D), concorrência multi-session W3C/W3D PASS e runner W3D
+PASS. A suíte multi-session prova lotes disjuntos por `SKIP LOCKED`, proteção de
+lease válida, reclaim expirado, fence novo, stale ack/fail negados e receipt
+pré-existente como replay. Unit, E2E, typecheck, lint, build e full gate são
+registrados no fechamento da subwave.
+
+### Limitações e deferred
+
+- W3E: hardening adversarial consolidado, inventários finais, retenção/cleanup e
+  gate integrado definitivo da infraestrutura W3;
+- deploy/daemon cloud, scheduler produtivo e observabilidade externa;
+- providers, filas externas, e-mail/SMS/push/webhooks e Notifications completas;
+- UI de operação/Global Admin e autorização W13 para wrapper público de requeue.
+
+```ini
+W3A_AUDIT_HISTORY_READY = YES
+W3B_EVENT_OUTBOX_READY = YES
+W3C_IDEMPOTENCY_HANDLER_READY = YES
+W3D_DELIVERY_RUNTIME_READY = YES
+W3E_HISTORY_OUTBOX_HARDENING_READY = NO
+W3_INFRASTRUCTURE_READY = NO
+```

@@ -721,20 +721,18 @@ select throws_ok($$ select * from private.command_idempotency $$, '42501', null,
 select throws_ok($$ select * from private.event_handler_receipts $$, '42501', null, 'service_role has no receipt shortcut');
 reset role;
 
--- W3D remains absent.
+-- W3C stores remain distinct after W3D delivery evolution.
 select is(
   (
-    select count(*) from information_schema.columns
-    where table_schema = 'private'
-      and table_name = 'outbox_events'
-      and column_name in (
-        'claimed_by', 'claimed_at', 'lease_expires_at', 'lease_token',
-        'processed_at', 'last_error_class', 'last_error_code',
-        'last_error_message', 'handler_name', 'handler_version', 'requeue_count'
-      )
+    select count(*) from pg_catalog.pg_constraint as constraint_record
+    join pg_catalog.pg_class as relation on relation.oid = constraint_record.conrelid
+    join pg_catalog.pg_namespace as namespace on namespace.oid = relation.relnamespace
+    where namespace.nspname = 'private'
+      and relation.relname = 'event_handler_receipts'
+      and constraint_record.conname = 'event_handler_receipts_consumer_event_uq'
   ),
-  0::bigint,
-  'W3C does not add W3D delivery runtime columns'
+  1::bigint,
+  'W3C receipt uniqueness remains the handler idempotency authority'
 );
 select is(
   (
@@ -742,21 +740,21 @@ select is(
     from pg_catalog.pg_class as relation
     join pg_catalog.pg_namespace as namespace on namespace.oid = relation.relnamespace
     where namespace.nspname = 'private'
-      and relation.relname = 'worker_handler_controls'
+      and relation.relname in ('command_idempotency', 'event_handler_receipts')
   ),
-  0::bigint,
-  'W3C does not create the W3D operational registry table'
+  2::bigint,
+  'W3C command and handler idempotency stores remain separate responsibilities'
 );
 select is(
   (
     select count(*)
-    from pg_catalog.pg_proc as procedure
-    join pg_catalog.pg_namespace as namespace on namespace.oid = procedure.pronamespace
-    where procedure.proname in ('claim_outbox_batch', 'complete_outbox_event', 'fail_outbox_event', 'requeue_dead_letter')
-      and namespace.nspname in ('public', 'private')
+    from information_schema.columns
+    where table_schema = 'private'
+      and table_name = 'event_handler_receipts'
+      and column_name in ('claimed_by', 'lease_token', 'fencing_token', 'next_attempt_at')
   ),
   0::bigint,
-  'W3C introduces no claim ack retry dead-letter or requeue boundary'
+  'W3D delivery state is not mixed into W3C receipt evidence'
 );
 
 select * from finish();

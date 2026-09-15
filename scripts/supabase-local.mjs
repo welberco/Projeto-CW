@@ -24,6 +24,16 @@ const w3cConcurrencyScript = path.join(
   'scripts',
   'w3c-concurrency-test.mjs',
 )
+const w3dConcurrencyScript = path.join(
+  projectRoot,
+  'scripts',
+  'w3d-concurrency-test.mjs',
+)
+const w3dRunnerTestScript = path.join(
+  projectRoot,
+  'scripts',
+  'w3d-runner-test.mjs',
+)
 const expectedMigrationVersions = [
   '20260909000000',
   '20260910000000',
@@ -44,6 +54,7 @@ const expectedMigrationVersions = [
   '20260915000000',
   '20260915001000',
   '20260915002000',
+  '20260915003000',
 ]
 const expectedPublicTables = [
   'app_users',
@@ -62,6 +73,7 @@ const expectedPrivateTables = [
   'outbox_events',
   'command_idempotency',
   'event_handler_receipts',
+  'worker_handler_controls',
 ]
 const supportedCommands = new Set(['start', 'stop', 'reset', 'types', 'smoke'])
 
@@ -248,12 +260,15 @@ switch (command) {
       'supabase/tests/w3a_audit_history.sql',
       'supabase/tests/w3b_event_outbox.sql',
       'supabase/tests/w3c_idempotency_handler_contract.sql',
+      'supabase/tests/w3d_delivery_runtime.sql',
     ])
 
     runLocalNodeScript(w3cConcurrencyScript)
+    runLocalNodeScript(w3dConcurrencyScript)
+    runLocalNodeScript(w3dRunnerTestScript)
 
     process.stdout.write(
-      'DB_SMOKE_OK: migrations W0/W1/W2A/W2B/W2C/W2D/W2E/W3A/W3B/W3C aplicadas, schema esperado presente e testes pgTAP W1A-W3C/concurrency aprovados.\n',
+      'DB_SMOKE_OK: migrations W0/W1/W2A/W2B/W2C/W2D/W2E/W3A/W3B/W3C/W3D aplicadas, schema esperado presente e testes pgTAP W1A-W3D/concurrency/runner aprovados.\n',
     )
     break
   }

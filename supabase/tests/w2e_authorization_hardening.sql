@@ -24,7 +24,8 @@ where (
       'enqueue_event', 'jsonb_has_forbidden_event_keys', 'protect_outbox_event',
       'semantic_fingerprint', 'protect_command_idempotency',
       'acquire_command_idempotency', 'complete_command_idempotency',
-      'reject_event_handler_receipt_mutation', 'record_event_handler_receipt'
+      'reject_event_handler_receipt_mutation', 'record_event_handler_receipt',
+      'assert_current_outbox_lease', 'sanitize_worker_error', 'requeue_dead_letter'
     )
   )
    or (
