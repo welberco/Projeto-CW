@@ -36,6 +36,7 @@ const expectedMigrationVersions = [
   '20260914007000',
   '20260914008000',
   '20260914009000',
+  '20260915000000',
 ]
 const expectedPublicTables = [
   'app_users',
@@ -48,6 +49,7 @@ const expectedPublicTables = [
   'tenant_profiles',
   'tenant_profile_permissions',
   'tenant_permission_overrides',
+  'history_entries',
 ]
 const supportedCommands = new Set(['start', 'stop', 'reset', 'types', 'smoke'])
 
@@ -196,10 +198,11 @@ switch (command) {
       'supabase/tests/w2c_authorization_engine.sql',
       'supabase/tests/w2d_authorization_projection.sql',
       'supabase/tests/w2e_authorization_hardening.sql',
+      'supabase/tests/w3a_audit_history.sql',
     ])
 
     process.stdout.write(
-      'DB_SMOKE_OK: migrations W0/W1/W2A/W2B/W2C/W2D/W2E aplicadas, schema esperado presente e testes pgTAP W1A-W2E aprovados.\n',
+      'DB_SMOKE_OK: migrations W0/W1/W2A/W2B/W2C/W2D/W2E/W3A aplicadas, schema esperado presente e testes pgTAP W1A-W3A aprovados.\n',
     )
     break
   }

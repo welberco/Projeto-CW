@@ -16,7 +16,13 @@ select
 from pg_catalog.pg_proc as procedure
 join pg_catalog.pg_namespace as namespace
   on namespace.oid = procedure.pronamespace
-where namespace.nspname = 'private'
+where (
+    namespace.nspname = 'private'
+    and procedure.proname not in (
+      'append_audit', 'append_history', 'jsonb_has_forbidden_history_keys',
+      'prepare_audit_event', 'reject_history_mutation'
+    )
+  )
    or (
      namespace.nspname = 'public'
      and procedure.proname in (

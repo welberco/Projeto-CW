@@ -45,38 +45,59 @@ export type Database = {
       audit_events: {
         Row: {
           actor_kind: string
+          actor_ref: string | null
           actor_user_id: string | null
+          authority_kind: string | null
+          causation_id: string | null
+          command_id: string | null
           correlation_id: string
           entity_id: string | null
           entity_type: string
           event_type: string
+          event_version: number
           id: string
           metadata: Json
           occurred_at: string
+          reason: string | null
+          source: string | null
           tenant_id: string | null
         }
         Insert: {
           actor_kind: string
+          actor_ref?: string | null
           actor_user_id?: string | null
+          authority_kind?: string | null
+          causation_id?: string | null
+          command_id?: string | null
           correlation_id?: string
           entity_id?: string | null
           entity_type: string
           event_type: string
+          event_version?: number
           id?: string
           metadata?: Json
           occurred_at?: string
+          reason?: string | null
+          source?: string | null
           tenant_id?: string | null
         }
         Update: {
           actor_kind?: string
+          actor_ref?: string | null
           actor_user_id?: string | null
+          authority_kind?: string | null
+          causation_id?: string | null
+          command_id?: string | null
           correlation_id?: string
           entity_id?: string | null
           entity_type?: string
           event_type?: string
+          event_version?: number
           id?: string
           metadata?: Json
           occurred_at?: string
+          reason?: string | null
+          source?: string | null
           tenant_id?: string | null
         }
         Relationships: [
@@ -89,6 +110,84 @@ export type Database = {
           },
           {
             foreignKeyName: "audit_events_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      history_entries: {
+        Row: {
+          actor_kind: string
+          actor_ref: string | null
+          actor_user_id: string | null
+          aggregate_id: string
+          aggregate_type: string
+          aggregate_version: number | null
+          causation_id: string | null
+          command_id: string
+          command_name: string
+          correlation_id: string
+          history_type: string
+          history_version: number
+          human_code: string | null
+          id: string
+          occurred_at: string
+          payload: Json
+          source: string
+          tenant_id: string
+        }
+        Insert: {
+          actor_kind: string
+          actor_ref?: string | null
+          actor_user_id?: string | null
+          aggregate_id: string
+          aggregate_type: string
+          aggregate_version?: number | null
+          causation_id?: string | null
+          command_id: string
+          command_name: string
+          correlation_id: string
+          history_type: string
+          history_version?: number
+          human_code?: string | null
+          id?: string
+          occurred_at?: string
+          payload?: Json
+          source: string
+          tenant_id: string
+        }
+        Update: {
+          actor_kind?: string
+          actor_ref?: string | null
+          actor_user_id?: string | null
+          aggregate_id?: string
+          aggregate_type?: string
+          aggregate_version?: number | null
+          causation_id?: string | null
+          command_id?: string
+          command_name?: string
+          correlation_id?: string
+          history_type?: string
+          history_version?: number
+          human_code?: string | null
+          id?: string
+          occurred_at?: string
+          payload?: Json
+          source?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "history_entries_actor_user_id_fkey"
+            columns: ["actor_user_id"]
+            isOneToOne: false
+            referencedRelation: "app_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "history_entries_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "tenants"
