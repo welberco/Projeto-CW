@@ -185,12 +185,10 @@ select is(
     from pg_catalog.pg_class as relation
     join pg_catalog.pg_namespace as namespace on namespace.oid = relation.relnamespace
     where namespace.nspname = 'private'
-      and relation.relname in (
-        'command_idempotency', 'event_handler_receipts', 'worker_handler_controls'
-      )
+      and relation.relname = 'worker_handler_controls'
   ),
   0::bigint,
-  'W3B does not create W3C or W3D tables'
+  'W3B and W3C do not create the W3D handler control table'
 );
 
 -- Two tenant actors prove authoritative tenant binding.
@@ -574,10 +572,10 @@ select throws_ok(
   'event rows cannot be deleted'
 );
 
-select throws_ok(
+select throws_like(
   $$ truncate private.outbox_events $$,
-  '55000', 'outbox event cannot be deleted',
-  'outbox events cannot be truncated'
+  '%cannot truncate a table referenced in a foreign key constraint%',
+  'outbox events remain non-truncatable after W3C receipt integrity is added'
 );
 
 -- One real W2 command proves Domain mutation + Audit + Event in one transaction.

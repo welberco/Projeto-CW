@@ -21,7 +21,10 @@ where (
     and procedure.proname not in (
       'append_audit', 'append_history', 'jsonb_has_forbidden_history_keys',
       'prepare_audit_event', 'reject_history_mutation',
-      'enqueue_event', 'jsonb_has_forbidden_event_keys', 'protect_outbox_event'
+      'enqueue_event', 'jsonb_has_forbidden_event_keys', 'protect_outbox_event',
+      'semantic_fingerprint', 'protect_command_idempotency',
+      'acquire_command_idempotency', 'complete_command_idempotency',
+      'reject_event_handler_receipt_mutation', 'record_event_handler_receipt'
     )
   )
    or (
@@ -37,6 +40,7 @@ where (
        'invite_tenant_user', 'revoke_tenant_invitation_authenticated',
        'expire_tenant_invitation_authenticated', 'resolve_my_authorization'
      )
+     and not (procedure.proname = 'create_tenant_profile' and procedure.pronargs = 4)
    );
 
 -- Integrated RLS, grants, function and default-privilege inventory.

@@ -19,6 +19,11 @@ const generatedTypesPath = path.join(
   'supabase',
   'database.types.ts',
 )
+const w3cConcurrencyScript = path.join(
+  projectRoot,
+  'scripts',
+  'w3c-concurrency-test.mjs',
+)
 const expectedMigrationVersions = [
   '20260909000000',
   '20260910000000',
@@ -38,6 +43,7 @@ const expectedMigrationVersions = [
   '20260914009000',
   '20260915000000',
   '20260915001000',
+  '20260915002000',
 ]
 const expectedPublicTables = [
   'app_users',
@@ -52,7 +58,11 @@ const expectedPublicTables = [
   'tenant_permission_overrides',
   'history_entries',
 ]
-const expectedPrivateTables = ['outbox_events']
+const expectedPrivateTables = [
+  'outbox_events',
+  'command_idempotency',
+  'event_handler_receipts',
+]
 const supportedCommands = new Set(['start', 'stop', 'reset', 'types', 'smoke'])
 
 const command = process.argv[2]
@@ -117,6 +127,24 @@ function assertLocalRuntime() {
       'LOCAL_RUNTIME_BLOCKER: Docker compatível não está instalado ou acessível.',
     )
   }
+}
+
+function runLocalNodeScript(scriptPath) {
+  const result = spawnSync(process.execPath, [scriptPath], {
+    cwd: projectRoot,
+    env: localEnvironment,
+    encoding: 'utf8',
+    stdio: 'pipe',
+  })
+
+  if (result.error !== undefined || result.status !== 0) {
+    process.stdout.write(result.stdout ?? '')
+    process.stderr.write(result.stderr ?? result.error?.message ?? '')
+    process.exit(result.status ?? 1)
+  }
+
+  process.stdout.write(result.stdout ?? '')
+  process.stderr.write(result.stderr ?? '')
 }
 
 function fail(message) {
@@ -219,10 +247,13 @@ switch (command) {
       'supabase/tests/w2e_authorization_hardening.sql',
       'supabase/tests/w3a_audit_history.sql',
       'supabase/tests/w3b_event_outbox.sql',
+      'supabase/tests/w3c_idempotency_handler_contract.sql',
     ])
 
+    runLocalNodeScript(w3cConcurrencyScript)
+
     process.stdout.write(
-      'DB_SMOKE_OK: migrations W0/W1/W2A/W2B/W2C/W2D/W2E/W3A/W3B aplicadas, schema esperado presente e testes pgTAP W1A-W3B aprovados.\n',
+      'DB_SMOKE_OK: migrations W0/W1/W2A/W2B/W2C/W2D/W2E/W3A/W3B/W3C aplicadas, schema esperado presente e testes pgTAP W1A-W3C/concurrency aprovados.\n',
     )
     break
   }

@@ -71,9 +71,10 @@ select is(
 select is(
   (
     select count(*)
-    from information_schema.routine_privileges
-    where specific_schema = 'public'
-      and routine_name in (
+    from pg_catalog.pg_proc as procedure
+    join pg_catalog.pg_namespace as namespace on namespace.oid = procedure.pronamespace
+    where namespace.nspname = 'public'
+      and procedure.proname in (
         'create_tenant_profile', 'update_tenant_profile',
         'change_tenant_profile_status', 'set_tenant_profile_permission',
         'assign_tenant_membership_profile', 'set_tenant_permission_override',
@@ -81,8 +82,8 @@ select is(
         'invite_tenant_user', 'revoke_tenant_invitation_authenticated',
         'expire_tenant_invitation_authenticated'
       )
-      and grantee = 'authenticated'
-      and privilege_type = 'EXECUTE'
+      and not (procedure.proname = 'create_tenant_profile' and procedure.pronargs = 4)
+      and pg_catalog.has_function_privilege('authenticated', procedure.oid, 'EXECUTE')
   ),
   11::bigint,
   'authenticated receives only the eleven explicit W2C command entrypoints'

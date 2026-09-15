@@ -300,3 +300,127 @@ W3D_DELIVERY_RUNTIME_READY = NO
 W3E_HISTORY_OUTBOX_HARDENING_READY = NO
 W3_INFRASTRUCTURE_READY = NO
 ```
+
+## W3C — Idempotency e Handler Contract
+
+### Estado e escopo
+
+A W3C implementa idempotência de commands selecionados, evidência idempotente
+de conclusão por consumer e o contrato TypeScript allowlisted para handlers.
+Ela não executa a outbox: claim, lease, fencing, ack, retry, backoff,
+dead-letter operacional, requeue, worker e controles de handler continuam
+reservados à W3D.
+
+### Command idempotency
+
+`private.command_idempotency` possui namespace único por:
+
+```text
+tenant_id + actor_scope + source + command_name + idempotency_key_hash
+```
+
+`actor_scope` é derivado pelo helper interno a partir de `application_user` e
+seu usuário autoritativo, ou da identidade técnica/sistema controlada. A chave
+opaca é validada, transformada em SHA-256 e nunca persistida em texto; portanto
+ela não fornece tenant, actor, source, command ou autorização.
+
+O fingerprint do request também é SHA-256, mas tem finalidade separada: ele é
+calculado sobre JSONB construído no command somente com sua intenção semântica.
+JSONB fornece representação determinística de objetos, independente da ordem
+textual das chaves. Correlation, timestamp, key e metadata irrelevante não
+participam. Na integração real, entram `command_name`, `profile_name` e
+`command_reason`.
+
+`private.acquire_command_idempotency` tenta inserir a identidade sob unique
+constraint. Duas transações com o mesmo namespace são serializadas pelo índice
+único do PostgreSQL; a concorrente aguarda a decisão da primeira, sem
+check-then-insert. Mesmo fingerprint sobre row concluída retorna `command_id` e
+resultado original; fingerprint diferente falha com
+`IDEMPOTENCY_FINGERPRINT_CONFLICT`. Estado intermediário inesperado falha
+fechado.
+
+`private.complete_command_idempotency` permite uma única transição
+`in_progress → completed`, persiste resultado JSON seguro e versionado e usa o
+timestamp do banco. Namespace, actor, fingerprint, command e resultado
+concluído são protegidos contra reescrita. Como acquisition, mutation, Audit,
+Event e completion vivem na mesma transaction, qualquer falha causa rollback
+integral e não deixa sucesso falso.
+
+### Integração real e compatibilidade
+
+`public.create_tenant_profile(text, text, uuid)` permanece inalterada para
+callers W2/W3B. A W3C adiciona a overload explícita e não ambígua:
+
+```text
+public.create_tenant_profile(text, text, uuid, text)
+```
+
+Os três primeiros argumentos preservam nome, reason e correlation nas posições
+existentes; o quarto é a key obrigatória desta variante. A primeira execução
+faz Domain mutation + Audit + Event/Outbox + resultado idempotente na mesma
+transaction. Replay compatível devolve o mesmo profile ID/version e a
+correlation original, sem novo efeito. History permanece N/A para criação de
+Perfil.
+
+Essa garantia é de replay transacional no PostgreSQL para o namespace
+declarado. Não promete exactly-once distribuído, entrega única por provider nem
+execução de consumer.
+
+### Handler receipts e contrato portátil
+
+`private.event_handler_receipts` registra evidência imutável de processamento
+concluído e possui unicidade `consumer_name + event_id`. Tenant, event type e
+event version são copiados da outbox pelo helper e protegidos por FK composta
+para a origem persistida. Mesmo consumer/event retorna receipt e resultado
+originais; tentativa de trocar handler/version falha fechada. O receipt não
+altera `status` da outbox e não se confunde com command idempotency nem delivery
+state.
+
+Os contratos TypeScript tipam `DomainEvent`, `OutboxEnvelope`, `EventHandler`,
+`HandlerResult`, `RetryClassification`, `TechnicalExecutionContext`,
+`CommandIdempotencyResult` e a projection futura de History. O registry é uma
+allowlist em memória por `event_type + event_version`, rejeita duplicidade,
+evento/versão desconhecido, payload inválido e tenant divergente. O handler de
+prova existe somente no teste unitário, não produz efeito de domínio e recebe a
+capability fixa do contrato, nunca do payload. Não há registry operacional em
+banco.
+
+### Segurança, testes e garantias
+
+As duas stores estão em `private`, com RLS habilitada, nenhuma policy e nenhum
+grant para `PUBLIC`, `anon`, `authenticated` ou `service_role`. Todos os helpers
+são `SECURITY INVOKER`, owner `postgres`, `search_path` vazio e sem EXECUTE para
+essas roles. Resultados têm formato de objeto, versão positiva, limite de 64
+KiB e rejeição recursiva de secrets, authority, handler e dumps.
+
+`supabase/tests/w3c_idempotency_handler_contract.sql` cobre estrutura, grants,
+namespace, SHA-256, canonicalização, execução, replay, conflito, rollback,
+tenant A/B, receipts e ausência de W3D. O teste complementar
+`scripts/w3c-concurrency-test.mjs` abre duas sessões reais no PostgreSQL local,
+mantém a primeira transaction aberta para forçar contenção e exige exatamente
+uma mutation, um record idempotente, um Audit e um Event, com History N/A e
+resultado igual. Seus fixtures locais são removidos ao concluir.
+
+Validação efetiva em Supabase estritamente local: reset completo com 19
+migrations, schema lint sem findings, 652/652 asserts pgTAP em 13 arquivos (78
+da W3C), teste concorrente PASS, 113/113 testes unitários em 18 arquivos e 6/6
+E2E. Typecheck, lint, build e diff-check passaram. O resultado agregado de
+`verify:v2:full` é `WARN` somente porque a implementação permanece
+intencionalmente sem commit, conforme solicitado.
+
+### Deferred e gate
+
+- W3D: claim por `SKIP LOCKED`, lease/fencing, registry operacional controlado,
+  runner, ack/fail, retry/backoff, dead-letter e requeue;
+- W3E: hardening adversarial integrado, retenção/cleanup e gate final W3;
+- provider/worker produtivo, canais externos e Notifications permanecem fora
+  desta subwave.
+
+```ini
+W3A_AUDIT_HISTORY_READY = YES
+W3B_EVENT_OUTBOX_READY = YES
+W3C_IDEMPOTENCY_HANDLER_READY = YES
+W3D_DELIVERY_RUNTIME_READY = NO
+W3E_HISTORY_OUTBOX_HARDENING_READY = NO
+W3_INFRASTRUCTURE_READY = NO
+```

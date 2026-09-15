@@ -771,18 +771,32 @@ export type Database = {
           invite_ref: string
         }[]
       }
-      create_tenant_profile: {
-        Args: {
-          command_reason: string
-          correlation_id?: string
-          profile_name: string
-        }
-        Returns: {
-          command_correlation_id: string
-          profile_id: string
-          profile_version: number
-        }[]
-      }
+      create_tenant_profile:
+        | {
+            Args: {
+              command_reason: string
+              correlation_id?: string
+              profile_name: string
+            }
+            Returns: {
+              command_correlation_id: string
+              profile_id: string
+              profile_version: number
+            }[]
+          }
+        | {
+            Args: {
+              command_idempotency_key: string
+              command_reason: string
+              correlation_id: string
+              profile_name: string
+            }
+            Returns: {
+              command_correlation_id: string
+              profile_id: string
+              profile_version: number
+            }[]
+          }
       delete_tenant_permission_override: {
         Args: {
           command_reason: string
