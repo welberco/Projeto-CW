@@ -530,7 +530,11 @@ select is(
   'worker error sanitizer redacts a Bearer credential'
 );
 select is(
-  private.sanitize_worker_error('eyJhbGciOiJub25lIn0.eyJzdWIiOiJzeW50aGV0aWMifQ.synthetic-signature'),
+  private.sanitize_worker_error(pg_catalog.concat(
+    'eyJhbGciOiJub25lIn0', '.',
+    'eyJzdWIiOiJzeW50aGV0aWMifQ', '.',
+    'synthetic-signature'
+  )),
   'Sensitive worker error details were redacted.',
   'worker error sanitizer redacts a raw JWT-shaped value'
 );

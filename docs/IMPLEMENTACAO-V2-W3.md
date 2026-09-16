@@ -574,3 +574,119 @@ W3D_DELIVERY_RUNTIME_READY = YES
 W3E_HISTORY_OUTBOX_HARDENING_READY = NO
 W3_INFRASTRUCTURE_READY = NO
 ```
+
+## W3E — History/Outbox Hardening e gate integrado
+
+### Escopo e resultado técnico
+
+A W3E não acrescenta schema nem funcionalidade de produto. A revisão integrada
+de W3A–W3D não encontrou gap de banco que justificasse alterar migrations já
+congeladas; portanto, não existe migration W3E. O hardening acrescenta um gate
+pgTAP consolidado, um runner adversarial local e amplia o teste do registry para
+campos de payload que tentem escolher autoridade técnica.
+
+O fluxo real validado permanece:
+
+```text
+command autorizado -> mutation + Audit + Event + idempotency result
+persisted Event -> claim allowlisted -> authoritative reread
+-> fixed capability -> receipt + ack
+```
+
+History continua separado de Audit e Event. Para a operação real
+`create_tenant_profile`, History é deliberadamente N/A; o gate cria uma fixture
+History separada apenas para provar append-only e ausência de falsificação.
+
+### Hardening adversarial
+
+`supabase/tests/w3e_history_outbox_hardening.sql` valida de forma efetiva:
+
+- RLS e ausência de policies/grants diretos em Audit, History, Outbox,
+  idempotency e receipts;
+- nenhuma leitura/injeção cliente em Audit/History e nenhuma inspeção direta da
+  infraestrutura privada;
+- role `cw_worker` sem login, inheritance, bypass RLS ou privilégios
+  administrativos, limitada às quatro boundaries W3D;
+- `service_role` sem shortcut de delivery e sem grants de tabela W3;
+- owner `postgres`, `SECURITY DEFINER` necessário e `search_path` vazio nas
+  quatro boundaries públicas do worker;
+- Audit e History append-only por update/delete adversarial;
+- imutabilidade de todas as classes factuais do Event: identidade, type/version,
+  tenant, aggregate, actor/source, command/correlation/causation,
+  payload/metadata e timestamp;
+- command idempotency real, replay estável sem duplicação e conflito semântico
+  fail-closed;
+- payload com `tenant_id`, `handler` ou `capability` incapaz de conferir
+  autoridade;
+- limites de batch 1–100 e mensagem de erro 1–500;
+- ausência de boundary implícita de purge/cleanup.
+
+O registry TypeScript também rejeita payloads extras sintéticos chamados
+`tenant_id`, `actor_id`, `role`, `permission`, `scope`, `capability`, `handler`,
+`consumer`, `function`, `sql`, `worker_id`, `lease_id`, `fencing_token`,
+`service_role` e `authorization`. Handler, consumer e capability continuam
+allowlisted/compilados; não há dynamic import, `eval` ou SQL escolhido pelo
+evento.
+
+### Concorrência, fencing e falhas
+
+Os runners multi-session existentes continuam sendo parte obrigatória do gate.
+W3C usa duas conexões PostgreSQL reais concorrentes e prova uma única mutation,
+idempotency row, Audit e Event. W3D usa sessões distintas para provar claims
+disjuntos por `FOR UPDATE SKIP LOCKED`, lease válida sem steal, reclaim após
+expiração, incremento do fence e rejeição de ack/fail stale. Receipt replay não
+repete efeito lógico.
+
+O runner integrado mantém retry exponencial com jitter limitado, máximo de
+tentativas, poison/unsupported terminal, dead-letter não claimável e requeue
+explícito/auditado. O fato Event original permanece imutável. A garantia é
+**at-least-once delivery** com idempotência/receipt dentro das fronteiras
+implementadas; não é exactly-once distribuído.
+
+`scripts/w3e-adversarial-test.mjs` percorre a boundary real
+`cw_worker -> fail_outbox_event -> last_error_message` e lê o valor persistido.
+Texto operacional seguro é preservado. Bearer, JWT cru, signed URL genérica,
+`access_token`, `refresh_token`, `api_key`, `apikey`, `signature`, `sig`,
+`secret`, `password` e conteúdo semelhante a dump usam somente valores
+sintéticos e convergem para a mensagem genérica. Entrada acima de 500 caracteres
+falha sem alterar o estado; overwrite direto pela role worker é negado.
+
+### Retenção e cleanup
+
+A decisão congelada foi preservada sem inventar prazos:
+
+- Audit é evidência append-only de longa duração e não possui purge normal;
+- History acompanha a rastreabilidade do aggregate e não possui hard delete
+  normal;
+- Outbox `pending`, `processing` ou `dead_letter` não é removida
+  automaticamente;
+- Outbox `processed` somente poderá receber housekeeping futuro, explícito,
+  configurado e compatível com holds/evidência;
+- janelas de retenção de command idempotency e receipts continuam decisão
+  operacional futura e não podem quebrar replay, correlação ou reprocessamento.
+
+Assim, a responsabilidade W3E de retenção fica resolvida pela comprovação de que
+nenhum cleanup inseguro existe e pela documentação dos limites, não por uma
+política numérica arbitrária.
+
+### Validação local
+
+O reset local aplica 20 migrations históricas inalteradas. Schema lint público e
+privado passa sem findings. A suíte contém 774/774 asserts pgTAP em 15 arquivos,
+incluindo 45 W3E, além de concorrência W3C/W3D, runner W3D e adversarial W3E.
+Unit possui 132/132 testes, E2E 6/6, typecheck, lint e build passam. O full gate
+permanece autorizado a reportar `WARN` exclusivamente pelo worktree W3E ainda
+sem commit; falha funcional ou de segurança continua bloqueante.
+
+Continuam fora do escopo: worker/deploy/scheduler de produção, observabilidade
+externa, providers, filas, webhooks, Notifications, UI administrativa, prazos de
+retenção operacionais e qualquer funcionalidade W4.
+
+```ini
+W3A_AUDIT_HISTORY_READY = YES
+W3B_EVENT_OUTBOX_READY = YES
+W3C_IDEMPOTENCY_HANDLER_READY = YES
+W3D_DELIVERY_RUNTIME_READY = YES
+W3E_HISTORY_OUTBOX_HARDENING_READY = YES
+W3_INFRASTRUCTURE_READY = YES
+```

@@ -19,6 +19,7 @@
     "test:v2:db:w3c:concurrency": "node scripts/w3c-concurrency-test.mjs",
     "test:v2:db:w3d:concurrency": "node scripts/w3d-concurrency-test.mjs",
     "test:v2:db:w3d:runner": "node scripts/w3d-runner-test.mjs",
+    "test:v2:db:w3e:adversarial": "node scripts/w3e-adversarial-test.mjs",
     "ops:w3d:run-once": "node scripts/w3d-local-runner.mjs once",
     "test:v2:db:w1c:embedded": "node scripts/w1c-embedded-migration-check.mjs",
     "test:v2:all": "npm run test:v2:unit && npm run test:v2:db && npm run test:v2:e2e",

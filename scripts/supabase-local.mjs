@@ -34,6 +34,11 @@ const w3dRunnerTestScript = path.join(
   'scripts',
   'w3d-runner-test.mjs',
 )
+const w3eAdversarialTestScript = path.join(
+  projectRoot,
+  'scripts',
+  'w3e-adversarial-test.mjs',
+)
 const expectedMigrationVersions = [
   '20260909000000',
   '20260910000000',
@@ -261,14 +266,16 @@ switch (command) {
       'supabase/tests/w3b_event_outbox.sql',
       'supabase/tests/w3c_idempotency_handler_contract.sql',
       'supabase/tests/w3d_delivery_runtime.sql',
+      'supabase/tests/w3e_history_outbox_hardening.sql',
     ])
 
     runLocalNodeScript(w3cConcurrencyScript)
     runLocalNodeScript(w3dConcurrencyScript)
     runLocalNodeScript(w3dRunnerTestScript)
+    runLocalNodeScript(w3eAdversarialTestScript)
 
     process.stdout.write(
-      'DB_SMOKE_OK: migrations W0/W1/W2A/W2B/W2C/W2D/W2E/W3A/W3B/W3C/W3D aplicadas, schema esperado presente e testes pgTAP W1A-W3D/concurrency/runner aprovados.\n',
+      'DB_SMOKE_OK: migrations W0/W1/W2A/W2B/W2C/W2D/W2E/W3A/W3B/W3C/W3D aplicadas, schema esperado presente e testes pgTAP W1A-W3E/concurrency/runner/adversarial aprovados.\n',
     )
     break
   }

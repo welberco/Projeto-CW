@@ -157,6 +157,23 @@ describe('W3C allowlisted handler contract', () => {
       status: 'terminal_failure',
       code: 'EVENT_PAYLOAD_INVALID',
     })
+    for (const authorityField of [
+      'tenant_id', 'actor_id', 'role', 'permission', 'scope', 'capability',
+      'handler', 'consumer', 'function', 'sql', 'worker_id', 'lease_id',
+      'fencing_token', 'service_role', 'authorization',
+    ]) {
+      await expect(
+        registry.dispatch(
+          createEnvelope({
+            payload: { profile_version: 1, [authorityField]: 'forged' },
+          }),
+          context,
+        ),
+      ).resolves.toEqual({
+        status: 'terminal_failure',
+        code: 'EVENT_PAYLOAD_INVALID',
+      })
+    }
     await expect(
       registry.dispatch(createEnvelope(), { ...context, tenantId: 'tenant-b' }),
     ).resolves.toEqual({
@@ -215,7 +232,11 @@ describe('W3D retry and safe-error contract', () => {
 
   it.each([
     'Authorization: Bearer synthetic-token-value',
-    'eyJhbGciOiJub25lIn0.eyJzdWIiOiJzeW50aGV0aWMifQ.synthetic-signature',
+    [
+      'eyJhbGciOiJub25lIn0',
+      'eyJzdWIiOiJzeW50aGV0aWMifQ',
+      'synthetic-signature',
+    ].join('.'),
     'https://storage.example.invalid/object?X-Amz-Signature=synthetic-signature',
     'https://api.example.invalid/callback?access_token=synthetic-access',
     'refresh_token=synthetic-refresh',

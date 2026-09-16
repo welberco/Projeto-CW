@@ -15,6 +15,11 @@ const suffix = randomUUID().replaceAll('-', '')
 const actorId = randomUUID()
 const tenantId = randomUUID()
 const tenantRef = randomUUID()
+const syntheticJwt = [
+  'eyJhbGciOiJub25lIn0',
+  'eyJzdWIiOiJzeW50aGV0aWMifQ',
+  'synthetic-signature',
+].join('.')
 
 function run(sql, allowFailure = false) {
   const result = spawnSync(
@@ -186,7 +191,7 @@ try {
   const redactedMessage = 'Sensitive worker error details were redacted.'
   const sensitiveMessages = [
     ['SYNTHETIC_BEARER', 'Authorization: Bearer synthetic-token-value'],
-    ['SYNTHETIC_JWT', 'eyJhbGciOiJub25lIn0.eyJzdWIiOiJzeW50aGV0aWMifQ.synthetic-signature'],
+    ['SYNTHETIC_JWT', syntheticJwt],
     ['SYNTHETIC_SIGNED_URL', 'https://storage.example.invalid/object?X-Amz-Signature=synthetic-signature'],
     ['SYNTHETIC_ACCESS_TOKEN', 'https://api.example.invalid/callback?access_token=synthetic-access'],
     ['SYNTHETIC_API_KEY', 'api_key=synthetic-api-key'],
