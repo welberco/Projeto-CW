@@ -1110,6 +1110,254 @@ queries.
 
 **Deferred:** alcance TEAM de recursos que ainda não existem.
 
+#### W4B — plano de execução ratificado após o fechamento da W4A
+
+Em 2026-09-17, depois de `W4A_STRUCTURAL_CATALOGS_READY = YES` e antes do
+início de W4B.1, o plano abaixo foi revisado e aprovado. Esta seção detalha a
+subwave sem iniciar implementação. Ela preserva o registro histórico das
+seções 8 e 8.1 e explicita onde decisões pós-freeze as superaram.
+
+##### Semântica formal de `TEAM`
+
+Para uma Equipe `T`, `TEAM` alcança o registro se, e somente se:
+
+1. `auth.uid()` identifica um `app_user` `ACTIVE`;
+2. a membership operacional do ator está `ACTIVE`;
+3. o tenant dessa membership está `ACTIVE`;
+4. `T` pertence exatamente ao mesmo tenant e está `ACTIVE`;
+5. existe um período `team_membership` `ACTIVE` e vigente ligando a membership
+   operacional do ator a `T`; e
+6. o ator possui a combinação exata `teams + action + TEAM`.
+
+`ALL_TENANT` permanece independente. `DENY TEAM` não subtrai
+`ALL_TENANT`, e `ALLOW ALL_TENANT` não é convertido em `TEAM`. Setor, nome de
+Equipe, Perfil, tenant, URL, cache, JWT isolado ou `team_id` recebido do cliente
+não provam alcance.
+
+Para um recurso futuro `R`, `TEAM` somente poderá ser consumido quando a wave
+dona materializar e documentar uma associação autoritativa vigente de `R` a
+uma Equipe alcançada pelo ator. Na ausência dessa relação específica do
+domínio, `TEAM = false`. Setor nunca será proxy de `TEAM`.
+
+A resolução continua separada em duas decisões:
+
+1. W2 resolve a permission exata e os scopes efetivos;
+2. a boundary do recurso relê fatos persistidos e prova que `TEAM` alcança o
+   target.
+
+W4B MAY introduzir helper privado mínimo para o segundo predicado. Ela MUST NOT
+criar ACL genérica por recurso, evaluator baseado em payload ou hierarquia de
+scopes.
+
+##### Modelo físico planejado
+
+`public.teams` terá `id uuid`, `tenant_id uuid NOT NULL`, `sector_id uuid`
+opcional, `code` opcional, `name`, `description`, `status`, `version`, autoria,
+timestamps e `inactivated_at`. Deve possuir:
+
+- identidade composta única `(tenant_id, id)`;
+- FK composta tenant-aware para `sectors`;
+- código normalizado único no tenant quando presente;
+- checks de texto, lifecycle `active|inactive` e versão;
+- índices por tenant/status/nome e tenant/setor/status;
+- ausência de hard delete e de cascade funcional.
+
+`public.team_memberships` representa períodos, não um estado sobrescrito. Terá
+`id uuid`, `tenant_id uuid NOT NULL`, `team_id`, `membership_id`, `status`,
+`version`, `joined_at`, `ended_at`, autoria e timestamps. Deve possuir:
+
+- FKs compostas tenant-aware para `teams` e `tenant_memberships`;
+- lifecycle `active|ended` e check temporal coerente;
+- unique parcial de um vínculo ativo por
+  `(tenant_id, team_id, membership_id)`;
+- índices por Equipe/status e membership/status;
+- linha encerrada imutável e sem DELETE normal.
+
+Uma membership de tenant MAY participar simultaneamente de múltiplas Equipes.
+Encerrar uma associação preserva o período. Um retorno posterior à mesma
+Equipe cria outra linha; a linha anterior não é reativada.
+
+Bloqueio/inativação do usuário, bloqueio/revogação da membership de tenant ou
+inatividade do tenant tornam o alcance imediatamente falso sem apagar o
+histórico. Uma membership de tenant futura não herda vínculos da anterior.
+Add/end de Equipe MUST incrementar a revisão persistida da membership alvo para
+invalidar o vetor W2D e caches derivados, sem transformar cache em autoridade.
+
+Equipe com vínculos ativos não pode ser inativada. Todos os vínculos ativos
+devem ser encerrados por commands explícitos antes da transição, sem cascade ou
+efeito implícito. Setor com Equipes ativas também não pode ser inativado: as
+Equipes devem ser movidas para Setor válido ou inativadas conforme esse
+lifecycle. W4B implementará essa dependência por alteração forward-only, sem
+editar a migration W4A.
+
+##### Catálogo exato e decisão posterior sobre `use`
+
+A linha histórica de `teams` na seção 8 e os baselines da seção 8.1 incluíam
+`use`. Essa escolha foi superada pela política arquitetural ratificada na W4A:
+uma permission semelhante só existe diante de boundary concreta, consumida e
+testada. W4B não possui esse consumidor e, portanto, MUST NOT criar
+`shared.teams.use.team`, `shared.teams.use.all_tenant` nem equivalente.
+
+O catálogo W4B contém exatamente 11 combinações:
+
+- `shared.teams.read.team`;
+- `shared.teams.read.all_tenant`;
+- `shared.teams.lookup.team`;
+- `shared.teams.lookup.all_tenant`;
+- `shared.teams.create.all_tenant`;
+- `shared.teams.update.all_tenant`;
+- `shared.teams.inactivate.all_tenant`;
+- `shared.teams.reactivate.all_tenant`;
+- `shared.team_memberships.read.all_tenant`;
+- `shared.team_memberships.add.all_tenant`;
+- `shared.team_memberships.end.all_tenant`.
+
+Não existem combinações W4B com `OWN`, `ASSIGNED`, `use`, wildcard ou
+`manage`. `team_memberships` é Resource próprio: `read`, `add` e `end` são
+boundaries diferentes e todas usam `ALL_TENANT`. `teams.manage_members` é
+proibida.
+
+##### Baselines e rollout
+
+Os grants aprovados são estáticos e exatos:
+
+| Template | Grants W4B |
+| --- | --- |
+| `manager` | `teams.read.all_tenant`, `teams.lookup.all_tenant`, `teams.create.all_tenant`, `teams.update.all_tenant`, `teams.inactivate.all_tenant`, `team_memberships.read.all_tenant`, `team_memberships.add.all_tenant`, `team_memberships.end.all_tenant` |
+| `technician` | `teams.read.team`, `teams.lookup.team` |
+| `assistant` | `teams.read.team`, `teams.lookup.team` |
+| `requester` | `teams.lookup.team` |
+
+`teams.reactivate.all_tenant` permanece catalogada, mas fora dos quatro
+baselines. Custom Profiles não recebem grants automaticamente.
+
+O rollout MUST validar os quatro UUIDs/template keys oficiais e a versão 2,
+elevar os templates para versão 3 e usar
+`rollout_key = 'w4b_team_scope_v1'`. Ele é add-only, determinístico,
+transacional, idempotente e baseado em `template_key`, nunca display name.
+Deve reutilizar o ledger W4A, preservar exact overrides e grants existentes,
+excluir Custom Profiles e registrar Audit técnico sem duplicação em replay.
+
+##### Commands e read models
+
+Commands públicos explícitos:
+
+- Team: `create`, `update`, `inactivate`, `reactivate`;
+- Team membership: `add`, `end`.
+
+Create/update validam o Setor informado no mesmo tenant e ativo, sem exigir
+generic `use`. Update e transições exigem `expected_version`. Add aceita apenas
+Equipe e membership alvo; ambas devem estar ativas e no tenant do ator. End
+encerra um período ativo e nunca apaga ou reativa a linha.
+
+Toda mutation exige reason, idempotency key e correlação opcional, segue
+AUTH-02 e produz resultado estrito
+`{ id, version, status, command_correlation_id }`. Fingerprints incluem apenas
+a intenção semântica; reason, correlação e metadata de transporte ficam fora.
+
+Read models planejados:
+
+- listagem e detalhe de Equipe por `teams.read`, combinando somente os scopes
+  exatos efetivos;
+- lookup mínimo `id`, `code`, `name` de Equipes ativas por `teams.lookup`;
+- `my-teams` self-only, sem target principal vindo do cliente;
+- roster por Equipe e Equipes por membership somente com
+  `team_memberships.read.all_tenant`.
+
+`teams.read.team` não revela roster. Read/lookup não concedem add/end ou outra
+mutation. Roster não expõe e-mail Auth, permissions, overrides ou Perfil
+completo.
+
+##### RLS, concorrência e efeitos
+
+`teams` e `team_memberships` nascem com RLS habilitada e forced. Escrita direta
+é negada. SELECT de Equipe usa permission exata e predicado TEAM/ALL_TENANT;
+lookup e roster usam projections/RPCs próprias. `team_memberships` não recebe
+SELECT direto de cliente.
+
+Helpers privilegiados são privados, mínimos, de owner técnico, com
+`search_path = ''`, referências qualificadas, grants mínimos e sem autoridade
+aceita em parâmetros. Public RPCs são executáveis somente por `authenticated`;
+`PUBLIC`, `anon`, `service_role` e `cw_worker` não recebem atalhos. Global Admin
+permanece fora desta matriz e sujeito a PLAT-01.
+
+Ordem canônica planejada:
+
+1. advisory lock tenant e fatos do ator estabilizados por W2;
+2. identidade idempotente;
+3. Setor pai, quando aplicável;
+4. Equipes por UUID;
+5. tenant memberships alvo por UUID;
+6. team memberships por UUID;
+7. reread, autorização, estado, versão e invariantes;
+8. mutation, Audit, History, Event/Outbox e conclusão idempotente.
+
+Devem ser provadas: duplicate add com mesma e com diferentes keys, add versus
+end, add versus inativação da Equipe, dois updates com a mesma versão, end
+concorrente e mudança de membership durante command protegido por TEAM.
+
+Eventos v1:
+
+- `cadastros.team.{created,updated,inactivated,reactivated}`;
+- `cadastros.team_membership.{added,ended}`.
+
+Payloads são allowlisted e mínimos. Não contêm e-mail, Perfil, permissions,
+dumps de linha ou autoridade. Audit, History, Event e idempotency integram a
+mesma transação; qualquer falha obrigatória reverte tudo. W4B não cria handler,
+worker, notificação ou publicação externa.
+
+##### Contrato TEAM para domínios futuros
+
+Antes do primeiro grant TEAM, a wave dona do recurso deve documentar:
+
+- relação autoritativa Resource → Team e sua cardinalidade;
+- actions que reconhecem TEAM;
+- lifecycle da associação;
+- locks e rereads que estabilizam recurso, atribuição e membership;
+- efeito dos estados da Equipe e membership;
+- concorrência de reatribuição;
+- projeções permitidas;
+- testes positivos, negativos, cross-tenant e multi-session.
+
+O predicado conceitual obrigatório é:
+
+```text
+exact Resource.Action.TEAM permission
+AND target belongs to current tenant
+AND authoritative current target-team association exists
+AND intersection exists with actor active team memberships
+AND Team is active
+```
+
+`team_id` recebido do cliente nunca é authority. Sem associação autoritativa
+específica, `TEAM = false`.
+
+##### Testes e blocos internos
+
+A matriz W4B MUST cobrir schema, constraints, lifecycle, múltiplas Equipes,
+períodos históricos, cross-tenant, Team/membership/user inativos, UUID
+adivinhado, payload falso, TEAM versus ALL_TENANT, exact DENY TEAM, roster,
+lookup, grants, rollout, Custom Profiles, overrides, revision vector, RLS,
+owners/search_path/EXECUTE, idempotência, atomicidade, eventos mínimos e todas
+as races da seção anterior. Unitários cobrem schemas strict/query keys;
+gateway tests cobrem cada RPC e parsing fail-closed. E2E novo permanece W4D;
+a suíte existente continua regressão obrigatória.
+
+W4B é executada em três blocos internos, sem criar novas waves oficiais:
+
+1. **W4B.1 — Authorization Contract and Rollout**
+
+   Gate: `W4B_AUTHORIZATION_CATALOG_READY`.
+2. **W4B.2 — Team Domain and Scope Enforcement**
+
+   Gate: `W4B_TEAM_DOMAIN_READY`.
+3. **W4B.3 — Typed Boundary and Integrated Hardening**
+
+   Gate oficial: `W4B_TEAM_SCOPE_READY`.
+
+O congelamento deste plano não inicia W4B.1. `CADASTRO_READY` permanece `NO`
+até W4D.
+
 ### W4C — Maintenance Catalogs
 
 **Objective:** entregar Categorias/Subcategorias, Motivos contextuais, Tipos de

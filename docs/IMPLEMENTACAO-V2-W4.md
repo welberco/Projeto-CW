@@ -3,8 +3,11 @@
 ## Estado
 
 - Wave: **W4 — Cadastros estruturais e scope TEAM**.
-- Subwave em implementação: **W4A — Structural Catalog Foundation**.
-- Gate W4A: `W4A_STRUCTURAL_CATALOGS_READY`.
+- Subwave concluída: **W4A — Structural Catalog Foundation**.
+- Próxima subwave: **W4B — Teams and TEAM Scope**, com plano congelado e
+  implementação ainda não iniciada.
+- Gate W4A: `W4A_STRUCTURAL_CATALOGS_READY = YES`.
+- Gate W4B: `W4B_TEAM_SCOPE_READY = NO`.
 - Gate final: `CADASTRO_READY` (permanece `NO` até W4D).
 
 ## W4A — Structural Catalog Foundation
@@ -129,3 +132,96 @@ O gate exige reset e migrations locais, schema lint, toda a suíte pgTAP,
 concorrência PostgreSQL real, unit, E2E, typecheck, lint, build e regressão W0–W3.
 Resultados só são registrados no relatório da execução após serem efetivamente
 executados.
+
+## W4B — plano congelado, implementação não iniciada
+
+Em 2026-09-17 foi aprovado o plano executável de Equipes e scope `TEAM`. Este
+registro não cria schema, permission, migration, código ou teste executável e
+não inicia W4B.1.
+
+### Decisões ratificadas
+
+- `TEAM` depende de principal, membership de tenant, tenant, Equipe e período
+  de `team_membership` ativos e da combinação exata `Resource.Action.TEAM`;
+- `ALL_TENANT` é independente; `DENY TEAM` não o subtrai e
+  `ALLOW ALL_TENANT` não é convertido em `TEAM`;
+- Setor nunca é proxy de `TEAM`;
+- sem associação autoritativa Resource → Team definida pela wave dona,
+  `TEAM = false`;
+- uma membership pode participar simultaneamente de múltiplas Equipes;
+- a unicidade impede somente repetição do mesmo vínculo ativo;
+- período encerrado é imutável; retorno à Equipe cria nova linha;
+- não há DELETE normal nem reativação de período encerrado;
+- Equipe com membros ativos não pode ser inativada;
+- Setor com Equipes ativas não pode ser inativado;
+- não há cascade ou encerramento implícito;
+- `team_memberships` é Resource próprio com `read`, `add` e `end`, sempre
+  `ALL_TENANT`.
+
+### Catálogo e baselines congelados
+
+O catálogo W4B contém exatamente 11 permissions: oito para `teams` —
+`read.team`, `read.all_tenant`, `lookup.team`, `lookup.all_tenant`,
+`create.all_tenant`, `update.all_tenant`, `inactivate.all_tenant` e
+`reactivate.all_tenant` — e três para `team_memberships` —
+`read.all_tenant`, `add.all_tenant` e `end.all_tenant`.
+
+A matriz histórica W4 incluía `teams.use`. Essa decisão foi superada pela
+política pós-freeze aprovada na W4A. W4B não criará `teams.use`, generic
+`manage`, OWN, ASSIGNED ou wildcard.
+
+Baselines exatos:
+
+- Manager: read/lookup/create/update/inactivate de Teams em ALL_TENANT e
+  read/add/end de Team Memberships em ALL_TENANT — oito grants;
+- Technician: read/lookup de Teams em TEAM — dois grants;
+- Assistant: read/lookup de Teams em TEAM — dois grants;
+- Requester: lookup de Teams em TEAM — um grant.
+
+`teams.reactivate` permanece fora dos quatro baselines. O rollout aprovado usa
+`w4b_team_scope_v1`, eleva os templates oficiais da versão 2 para 3, é add-only,
+determinístico, idempotente e independente de display name. Custom Profiles e
+exact overrides permanecem intocados.
+
+### Modelo, boundaries e efeitos planejados
+
+`teams` será tenant-owned, versionada, inativável e opcionalmente associada a
+Setor por FK composta. `team_memberships` guardará períodos `active|ended` com
+FKs compostas para Team e tenant membership, unique parcial do par ativo e
+histórico integral.
+
+Commands planejados: create/update/inactivate/reactivate Team e add/end Team
+Membership. Read models: list/detail/lookup/my-teams, roster por Equipe e
+Equipes por membership. Roster exige `team_memberships.read`; TEAM read/lookup
+não revela membros.
+
+Todas as mutations seguem AUTH-02, expected version quando aplicável,
+idempotência W3 e resultado
+`{ id, version, status, command_correlation_id }`. Add/end atualizam a revisão
+persistida da membership alvo para invalidar caches derivados. RLS nasce
+fail-closed; escritas diretas são negadas; helpers privilegiados são privados,
+mínimos, com search path vazio e grants estritos.
+
+Audit, History e Outbox serão atômicos. Os eventos v1 são
+`cadastros.team.{created,updated,inactivated,reactivated}` e
+`cadastros.team_membership.{added,ended}`, com payload mínimo e sem autoridade
+ou PII desnecessária.
+
+### Contrato futuro e execução
+
+Todo recurso futuro que consumir TEAM deverá declarar associação autoritativa
+com Team, cardinalidade, actions, lifecycle, locks/rereads, efeitos de estado,
+concorrência, projeções e testes. O target deve pertencer ao tenant corrente e
+ter associação vigente com ao menos uma Equipe ativa presente nas memberships
+ativas do ator. `team_id` do cliente nunca é autoridade.
+
+Blocos internos congelados:
+
+1. W4B.1 — Authorization Contract and Rollout —
+   `W4B_AUTHORIZATION_CATALOG_READY`;
+2. W4B.2 — Team Domain and Scope Enforcement — `W4B_TEAM_DOMAIN_READY`;
+3. W4B.3 — Typed Boundary and Integrated Hardening —
+   `W4B_TEAM_SCOPE_READY`.
+
+Nenhuma nova wave oficial foi criada. W4B.1 somente poderá começar em missão
+posterior. `CADASTRO_READY` continua `NO` até W4D.
