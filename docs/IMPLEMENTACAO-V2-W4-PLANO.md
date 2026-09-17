@@ -1228,6 +1228,22 @@ Os grants aprovados são estáticos e exatos:
 | `assistant` | `teams.read.team`, `teams.lookup.team` |
 | `requester` | `teams.lookup.team` |
 
+**Ratificação pós-freeze da W4B decorrente da validação executável do contrato
+de delegação W2 (2026-09-17):** o baseline acima foi originalmente congelado
+com oito grants para `manager`. Durante W4B.1, assignment e invitation do
+Perfil Technician falharam com `AUTHORIZATION_DELEGATION_DENIED`, pois W2 exige
+que o concedente possua a mesma combinação exata delegada. Manager possuía
+somente `teams.read.all_tenant` e `teams.lookup.all_tenant`, enquanto Technician
+e Assistant recebem as combinações TEAM.
+
+A decisão ratificada acrescenta explicitamente
+`teams.read.team` e `teams.lookup.team` ao baseline Manager. O baseline vigente
+do Manager passa a conter exatamente dez grants W4B. As quatro combinações
+read/lookup × TEAM/ALL_TENANT são capabilities independentes. AUTH-01 permanece
+inalterado: não existe hierarquia, conversão ou implicação entre TEAM e
+ALL_TENANT, nem bypass ou exceção para template oficial. A regra W2 de
+delegação exata permanece integralmente preservada.
+
 `teams.reactivate.all_tenant` permanece catalogada, mas fora dos quatro
 baselines. Custom Profiles não recebem grants automaticamente.
 

@@ -111,21 +111,37 @@ with approved_w2(code) as (
     ('shared.sectors.create.all_tenant'),
     ('shared.sectors.update.all_tenant'),
     ('shared.sectors.inactivate.all_tenant')
+), approved_w4b(code) as (
+  values
+    ('shared.teams.read.team'),
+    ('shared.teams.read.all_tenant'),
+    ('shared.teams.lookup.team'),
+    ('shared.teams.lookup.all_tenant'),
+    ('shared.teams.create.all_tenant'),
+    ('shared.teams.update.all_tenant'),
+    ('shared.teams.inactivate.all_tenant'),
+    ('shared.team_memberships.read.all_tenant'),
+    ('shared.team_memberships.add.all_tenant'),
+    ('shared.team_memberships.end.all_tenant')
 )
 select
   pg_catalog.array_agg(approved.code order by approved.code) as codes,
   count(*)::integer as permission_count,
   count(*) filter (where approved.source_wave = 'W2')::integer as w2_permission_count,
-  count(*) filter (where approved.source_wave = 'W4A')::integer as w4a_permission_count
+  count(*) filter (where approved.source_wave = 'W4A')::integer as w4a_permission_count,
+  count(*) filter (where approved.source_wave = 'W4B.1')::integer as w4b_permission_count
 from (
   select code, 'W2'::text as source_wave from approved_w2
   union all
   select code, 'W4A'::text as source_wave from approved_w4a
+  union all
+  select code, 'W4B.1'::text as source_wave from approved_w4b
 ) as approved;
 grant select on w2d_expected_permissions to authenticated;
 
 select is((select w2_permission_count from w2d_expected_permissions), 11, 'the projection fixture preserves the exact W2 permission allowlist');
 select is((select w4a_permission_count from w2d_expected_permissions), 22, 'the projection fixture recognizes only the approved W4A manager extension');
+select is((select w4b_permission_count from w2d_expected_permissions), 10, 'the projection fixture recognizes only the approved W4B.1 manager extension');
 
 set local "request.jwt.claim.sub" = '18000000-0000-4000-8000-000000000002';
 set local role authenticated;
@@ -166,7 +182,7 @@ select is(
 select is(
   (select cardinality(permission_codes) from public.resolve_my_authorization()),
   (select permission_count from w2d_expected_permissions),
-  'the manager receives exactly the allowlisted W2 plus W4A permission codes'
+  'the manager receives exactly the allowlisted W2, W4A and W4B.1 permission codes'
 );
 select is(
   (

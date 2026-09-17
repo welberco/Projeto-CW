@@ -52,7 +52,22 @@ values
   ('assistant', 'shared.cost_centers.lookup.all_tenant', 'W4A'),
   ('assistant', 'shared.sectors.lookup.all_tenant', 'W4A'),
   ('requester', 'shared.locations.lookup.all_tenant', 'W4A'),
-  ('requester', 'shared.sectors.lookup.all_tenant', 'W4A');
+  ('requester', 'shared.sectors.lookup.all_tenant', 'W4A'),
+  ('manager', 'shared.teams.read.team', 'W4B.1'),
+  ('manager', 'shared.teams.read.all_tenant', 'W4B.1'),
+  ('manager', 'shared.teams.lookup.team', 'W4B.1'),
+  ('manager', 'shared.teams.lookup.all_tenant', 'W4B.1'),
+  ('manager', 'shared.teams.create.all_tenant', 'W4B.1'),
+  ('manager', 'shared.teams.update.all_tenant', 'W4B.1'),
+  ('manager', 'shared.teams.inactivate.all_tenant', 'W4B.1'),
+  ('manager', 'shared.team_memberships.read.all_tenant', 'W4B.1'),
+  ('manager', 'shared.team_memberships.add.all_tenant', 'W4B.1'),
+  ('manager', 'shared.team_memberships.end.all_tenant', 'W4B.1'),
+  ('technician', 'shared.teams.read.team', 'W4B.1'),
+  ('technician', 'shared.teams.lookup.team', 'W4B.1'),
+  ('assistant', 'shared.teams.read.team', 'W4B.1'),
+  ('assistant', 'shared.teams.lookup.team', 'W4B.1'),
+  ('requester', 'shared.teams.lookup.team', 'W4B.1');
 
 select is(
   (
@@ -298,7 +313,7 @@ select is(
     ) as unexpected
   ),
   0::bigint,
-  'official profiles receive no permission outside the explicit W2 and W4A allowlists'
+  'official profiles receive no permission outside the explicit W2, W4A and W4B.1 allowlists'
 );
 select is(
   (
@@ -314,7 +329,7 @@ select is(
     ) as missing
   ),
   0::bigint,
-  'official profiles receive every permission explicitly approved by W2 and W4A'
+  'official profiles receive every permission explicitly approved by W2, W4A and W4B.1'
 );
 select is(
   private.apply_w4a_authorization_rollout((select tenant_id from w2b_bootstrap)),
@@ -518,7 +533,7 @@ select is(
     where profile_id = '96000000-0000-4000-8000-000000000010'
   ),
   0::bigint,
-  'custom profiles receive no silent W2 or W4A baseline grant'
+  'custom profiles receive no silent W2, W4A or W4B.1 baseline grant'
 );
 
 select throws_ok(

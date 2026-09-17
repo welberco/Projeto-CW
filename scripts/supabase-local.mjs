@@ -66,6 +66,7 @@ const expectedMigrationVersions = [
   '20260915002000',
   '20260915003000',
   '20260916000000',
+  '20260917000000',
 ]
 const expectedPublicTables = [
   'app_users',
@@ -279,6 +280,7 @@ switch (command) {
       'supabase/tests/w3d_delivery_runtime.sql',
       'supabase/tests/w3e_history_outbox_hardening.sql',
       'supabase/tests/w4a_structural_catalog_foundation.sql',
+      'supabase/tests/w4b_authorization_contract_rollout.sql',
     ])
 
     runLocalNodeScript(w3cConcurrencyScript)

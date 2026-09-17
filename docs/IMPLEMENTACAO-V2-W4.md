@@ -133,7 +133,7 @@ concorrência PostgreSQL real, unit, E2E, typecheck, lint, build e regressão W0
 Resultados só são registrados no relatório da execução após serem efetivamente
 executados.
 
-## W4B — plano congelado, implementação não iniciada
+## W4B — plano congelado e execução incremental
 
 Em 2026-09-17 foi aprovado o plano executável de Equipes e scope `TEAM`. Este
 registro não cria schema, permission, migration, código ou teste executável e
@@ -223,5 +223,63 @@ Blocos internos congelados:
 3. W4B.3 — Typed Boundary and Integrated Hardening —
    `W4B_TEAM_SCOPE_READY`.
 
-Nenhuma nova wave oficial foi criada. W4B.1 somente poderá começar em missão
-posterior. `CADASTRO_READY` continua `NO` até W4D.
+Nenhuma nova wave oficial foi criada. `CADASTRO_READY` continua `NO` até W4D.
+
+## W4B.1 — Authorization Contract and Rollout
+
+Em 2026-09-17 foi implementado somente o primeiro bloco interno da W4B. A
+migration forward-only `20260917000000_w4b_authorization_contract_rollout.sql`
+materializa as 11 permissions já congeladas, sem criar tabelas, RLS, commands,
+read models ou helper de alcance TEAM do domínio futuro.
+
+Os templates oficiais avançam de 2 para 3. A matriz originalmente implementada
+continha exatamente oito grants para Manager, dois para Technician, dois para
+Assistant e um para Requester. `teams.reactivate` existe no catálogo sem
+baseline; `teams.use`, generic `manage`, OWN, ASSIGNED e wildcard permanecem
+ausentes. A ratificação subsequente corrige somente o baseline Manager para dez.
+
+### Ratificação pós-freeze da delegação W2
+
+O baseline acima registra a decisão originalmente congelada de oito grants
+Manager. A validação executável W4B.1 revelou que assignment e invitation do
+Perfil Technician falhavam com `AUTHORIZATION_DELEGATION_DENIED`: W2 exige que
+o concedente possua a mesma combinação exata delegada, enquanto Manager tinha
+somente read/lookup ALL_TENANT e Technician/Assistant tinham read/lookup TEAM.
+
+Como ratificação pós-freeze da W4B decorrente da validação executável do
+contrato de delegação W2, foram adicionadas explicitamente ao baseline Manager
+`shared.teams.read.team` e `shared.teams.lookup.team`. O baseline vigente passa
+a exatamente dez grants W4B. AUTH-01 permanece inalterado: TEAM e ALL_TENANT
+são capabilities exatas independentes, sem hierarquia, implicação, bypass de
+Manager ou exceção para templates oficiais. O contrato W2 de delegação exata é
+preservado.
+
+O rollout `w4b_team_scope_v1` reutiliza
+`private.authorization_profile_rollouts`, serializa por tenant, seleciona
+somente instâncias com provenance oficial e copia somente os códigos W4B.1
+explicitamente allowlisted. Ele é add-only e idempotente: não remove grants,
+não altera overrides, não expande Custom Profiles e não usa display name como
+autoridade. Cada aplicação inicial registra Audit técnico por Perfil oficial;
+replay reutiliza o ledger sem duplicar grants ou Audit.
+
+Os testes W2B, W2D, W2E e W4A foram mantidos fail-closed diante da extensão do
+catálogo. A suíte dedicada W4B.1 valida catálogo e baselines exatos, versão dos
+templates, security mode/owner/search path/grants do rollout, preservação de
+Custom Profiles, renome de Perfil oficial, overrides exatos, replay e a
+independência semântica entre TEAM e ALL_TENANT no evaluator W2 existente.
+
+W4B.1 não simula associação com Equipe e não torna TEAM operacional. A criação
+de `public.teams`, `public.team_memberships`, o alcance autoritativo, RLS e
+boundaries permanece exclusivamente na W4B.2.
+
+### Resultado do gate W4B.1
+
+O reset local aplicou todas as migrations, incluindo W4B.1. Após a ratificação,
+a suíte DB integrada passou 890/890, incluindo 36/36 assertions dedicadas à
+W4B.1 e regressão W1–W4A. Unit passou 171/171; typecheck, lint e build passaram;
+E2E passou 6/6.
+
+O primeiro gate DB integrado expôs o blocker de delegação acima: 877 de 884
+assertions passaram e sete assertions encadeadas do W2C falharam. Essa execução
+é preservada como evidência que motivou a ratificação; os resultados finais
+após a correção explícita do baseline estão registrados acima.
