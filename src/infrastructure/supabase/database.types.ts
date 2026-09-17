@@ -117,6 +117,83 @@ export type Database = {
           },
         ]
       }
+      cost_centers: {
+        Row: {
+          code: string
+          created_at: string
+          created_by: string
+          description: string | null
+          id: string
+          inactivated_at: string | null
+          name: string
+          parent_id: string | null
+          status: string
+          tenant_id: string
+          updated_at: string
+          updated_by: string
+          version: number
+        }
+        Insert: {
+          code: string
+          created_at?: string
+          created_by: string
+          description?: string | null
+          id?: string
+          inactivated_at?: string | null
+          name: string
+          parent_id?: string | null
+          status?: string
+          tenant_id: string
+          updated_at?: string
+          updated_by: string
+          version?: number
+        }
+        Update: {
+          code?: string
+          created_at?: string
+          created_by?: string
+          description?: string | null
+          id?: string
+          inactivated_at?: string | null
+          name?: string
+          parent_id?: string | null
+          status?: string
+          tenant_id?: string
+          updated_at?: string
+          updated_by?: string
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cost_centers_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "app_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cost_centers_parent_fk"
+            columns: ["tenant_id", "parent_id"]
+            isOneToOne: false
+            referencedRelation: "cost_centers"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "cost_centers_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cost_centers_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "app_users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       history_entries: {
         Row: {
           actor_kind: string
@@ -195,6 +272,160 @@ export type Database = {
           },
         ]
       }
+      location_types: {
+        Row: {
+          code: string
+          created_at: string
+          created_by: string
+          description: string | null
+          id: string
+          inactivated_at: string | null
+          name: string
+          status: string
+          tenant_id: string
+          updated_at: string
+          updated_by: string
+          version: number
+        }
+        Insert: {
+          code: string
+          created_at?: string
+          created_by: string
+          description?: string | null
+          id?: string
+          inactivated_at?: string | null
+          name: string
+          status?: string
+          tenant_id: string
+          updated_at?: string
+          updated_by: string
+          version?: number
+        }
+        Update: {
+          code?: string
+          created_at?: string
+          created_by?: string
+          description?: string | null
+          id?: string
+          inactivated_at?: string | null
+          name?: string
+          status?: string
+          tenant_id?: string
+          updated_at?: string
+          updated_by?: string
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "location_types_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "app_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "location_types_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "location_types_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "app_users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      locations: {
+        Row: {
+          code: string | null
+          created_at: string
+          created_by: string
+          description: string | null
+          id: string
+          inactivated_at: string | null
+          location_type_id: string
+          name: string
+          parent_id: string | null
+          status: string
+          tenant_id: string
+          updated_at: string
+          updated_by: string
+          version: number
+        }
+        Insert: {
+          code?: string | null
+          created_at?: string
+          created_by: string
+          description?: string | null
+          id?: string
+          inactivated_at?: string | null
+          location_type_id: string
+          name: string
+          parent_id?: string | null
+          status?: string
+          tenant_id: string
+          updated_at?: string
+          updated_by: string
+          version?: number
+        }
+        Update: {
+          code?: string | null
+          created_at?: string
+          created_by?: string
+          description?: string | null
+          id?: string
+          inactivated_at?: string | null
+          location_type_id?: string
+          name?: string
+          parent_id?: string | null
+          status?: string
+          tenant_id?: string
+          updated_at?: string
+          updated_by?: string
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "locations_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "app_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "locations_parent_fk"
+            columns: ["tenant_id", "parent_id"]
+            isOneToOne: false
+            referencedRelation: "locations"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "locations_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "locations_type_fk"
+            columns: ["tenant_id", "location_type_id"]
+            isOneToOne: false
+            referencedRelation: "location_types"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "locations_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "app_users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       permission_catalog: {
         Row: {
           action_code: string
@@ -245,6 +476,73 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      sectors: {
+        Row: {
+          code: string | null
+          created_at: string
+          created_by: string
+          description: string | null
+          id: string
+          inactivated_at: string | null
+          name: string
+          status: string
+          tenant_id: string
+          updated_at: string
+          updated_by: string
+          version: number
+        }
+        Insert: {
+          code?: string | null
+          created_at?: string
+          created_by: string
+          description?: string | null
+          id?: string
+          inactivated_at?: string | null
+          name: string
+          status?: string
+          tenant_id: string
+          updated_at?: string
+          updated_by: string
+          version?: number
+        }
+        Update: {
+          code?: string | null
+          created_at?: string
+          created_by?: string
+          description?: string | null
+          id?: string
+          inactivated_at?: string | null
+          name?: string
+          status?: string
+          tenant_id?: string
+          updated_at?: string
+          updated_by?: string
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sectors_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "app_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sectors_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sectors_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "app_users"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       tenant_entitlements: {
         Row: {
@@ -802,6 +1100,53 @@ export type Database = {
           receipt_replayed: boolean
         }[]
       }
+      create_cost_center: {
+        Args: {
+          code: string
+          correlation_id: string
+          description: string
+          idempotency_key: string
+          name: string
+          parent_id: string
+          reason: string
+        }
+        Returns: Json
+      }
+      create_location: {
+        Args: {
+          code: string
+          correlation_id: string
+          description: string
+          idempotency_key: string
+          location_type_id: string
+          name: string
+          parent_id: string
+          reason: string
+        }
+        Returns: Json
+      }
+      create_location_type: {
+        Args: {
+          code: string
+          correlation_id: string
+          description: string
+          idempotency_key: string
+          name: string
+          reason: string
+        }
+        Returns: Json
+      }
+      create_sector: {
+        Args: {
+          code: string
+          correlation_id: string
+          description: string
+          idempotency_key: string
+          name: string
+          reason: string
+        }
+        Returns: Json
+      }
       create_tenant_invitation: {
         Args: {
           correlation_id?: string
@@ -894,6 +1239,101 @@ export type Database = {
           next_eligible_at: string
         }[]
       }
+      get_cost_center: {
+        Args: { target_id: string }
+        Returns: {
+          code: string
+          created_at: string
+          description: string
+          id: string
+          name: string
+          parent_id: string
+          status: string
+          updated_at: string
+          version: number
+        }[]
+      }
+      get_location: {
+        Args: { target_id: string }
+        Returns: {
+          code: string
+          created_at: string
+          description: string
+          id: string
+          location_type_id: string
+          name: string
+          parent_id: string
+          status: string
+          updated_at: string
+          version: number
+        }[]
+      }
+      get_location_type: {
+        Args: { target_id: string }
+        Returns: {
+          code: string
+          created_at: string
+          description: string
+          id: string
+          name: string
+          status: string
+          updated_at: string
+          version: number
+        }[]
+      }
+      get_sector: {
+        Args: { target_id: string }
+        Returns: {
+          code: string
+          created_at: string
+          description: string
+          id: string
+          name: string
+          status: string
+          updated_at: string
+          version: number
+        }[]
+      }
+      inactivate_cost_center: {
+        Args: {
+          correlation_id: string
+          expected_version: number
+          id: string
+          idempotency_key: string
+          reason: string
+        }
+        Returns: Json
+      }
+      inactivate_location: {
+        Args: {
+          correlation_id: string
+          expected_version: number
+          id: string
+          idempotency_key: string
+          reason: string
+        }
+        Returns: Json
+      }
+      inactivate_location_type: {
+        Args: {
+          correlation_id: string
+          expected_version: number
+          id: string
+          idempotency_key: string
+          reason: string
+        }
+        Returns: Json
+      }
+      inactivate_sector: {
+        Args: {
+          correlation_id: string
+          expected_version: number
+          id: string
+          idempotency_key: string
+          reason: string
+        }
+        Returns: Json
+      }
       invite_tenant_user: {
         Args: {
           command_reason: string
@@ -908,6 +1348,194 @@ export type Database = {
           invitation_token: string
           invite_ref: string
         }[]
+      }
+      list_cost_center_children: {
+        Args: { target_parent_id?: string }
+        Returns: {
+          code: string
+          id: string
+          name: string
+          parent_id: string
+          status: string
+          version: number
+        }[]
+      }
+      list_cost_centers: {
+        Args: {
+          result_limit?: number
+          result_offset?: number
+          search_text?: string
+          status_filter?: string
+        }
+        Returns: {
+          code: string
+          description: string
+          id: string
+          name: string
+          parent_id: string
+          status: string
+          updated_at: string
+          version: number
+        }[]
+      }
+      list_location_children: {
+        Args: { target_parent_id?: string }
+        Returns: {
+          code: string
+          id: string
+          location_type_id: string
+          name: string
+          parent_id: string
+          status: string
+          version: number
+        }[]
+      }
+      list_location_types: {
+        Args: {
+          result_limit?: number
+          result_offset?: number
+          search_text?: string
+          status_filter?: string
+        }
+        Returns: {
+          code: string
+          description: string
+          id: string
+          name: string
+          status: string
+          updated_at: string
+          version: number
+        }[]
+      }
+      list_locations: {
+        Args: {
+          result_limit?: number
+          result_offset?: number
+          search_text?: string
+          status_filter?: string
+        }
+        Returns: {
+          code: string
+          description: string
+          id: string
+          location_type_id: string
+          name: string
+          parent_id: string
+          status: string
+          updated_at: string
+          version: number
+        }[]
+      }
+      list_sectors: {
+        Args: {
+          result_limit?: number
+          result_offset?: number
+          search_text?: string
+          status_filter?: string
+        }
+        Returns: {
+          code: string
+          description: string
+          id: string
+          name: string
+          status: string
+          updated_at: string
+          version: number
+        }[]
+      }
+      lookup_cost_centers: {
+        Args: { result_limit?: number; search_text?: string }
+        Returns: {
+          code: string
+          id: string
+          name: string
+        }[]
+      }
+      lookup_location_types: {
+        Args: { result_limit?: number; search_text?: string }
+        Returns: {
+          code: string
+          id: string
+          name: string
+        }[]
+      }
+      lookup_locations: {
+        Args: { result_limit?: number; search_text?: string }
+        Returns: {
+          code: string
+          id: string
+          name: string
+        }[]
+      }
+      lookup_sectors: {
+        Args: { result_limit?: number; search_text?: string }
+        Returns: {
+          code: string
+          id: string
+          name: string
+        }[]
+      }
+      move_cost_center: {
+        Args: {
+          correlation_id: string
+          expected_version: number
+          id: string
+          idempotency_key: string
+          parent_id: string
+          reason: string
+        }
+        Returns: Json
+      }
+      move_location: {
+        Args: {
+          correlation_id: string
+          expected_version: number
+          id: string
+          idempotency_key: string
+          parent_id: string
+          reason: string
+        }
+        Returns: Json
+      }
+      reactivate_cost_center: {
+        Args: {
+          correlation_id: string
+          expected_version: number
+          id: string
+          idempotency_key: string
+          reason: string
+        }
+        Returns: Json
+      }
+      reactivate_location: {
+        Args: {
+          correlation_id: string
+          expected_version: number
+          id: string
+          idempotency_key: string
+          reason: string
+        }
+        Returns: Json
+      }
+      reactivate_location_type: {
+        Args: {
+          correlation_id: string
+          expected_version: number
+          id: string
+          idempotency_key: string
+          reason: string
+        }
+        Returns: Json
+      }
+      reactivate_sector: {
+        Args: {
+          correlation_id: string
+          expected_version: number
+          id: string
+          idempotency_key: string
+          reason: string
+        }
+        Returns: Json
       }
       read_profile_created_origin: {
         Args: {
@@ -1008,6 +1636,59 @@ export type Database = {
           profile_id: string
           profile_version: number
         }[]
+      }
+      update_cost_center: {
+        Args: {
+          code: string
+          correlation_id: string
+          description: string
+          expected_version: number
+          id: string
+          idempotency_key: string
+          name: string
+          reason: string
+        }
+        Returns: Json
+      }
+      update_location: {
+        Args: {
+          code: string
+          correlation_id: string
+          description: string
+          expected_version: number
+          id: string
+          idempotency_key: string
+          location_type_id: string
+          name: string
+          reason: string
+        }
+        Returns: Json
+      }
+      update_location_type: {
+        Args: {
+          code: string
+          correlation_id: string
+          description: string
+          expected_version: number
+          id: string
+          idempotency_key: string
+          name: string
+          reason: string
+        }
+        Returns: Json
+      }
+      update_sector: {
+        Args: {
+          code: string
+          correlation_id: string
+          description: string
+          expected_version: number
+          id: string
+          idempotency_key: string
+          name: string
+          reason: string
+        }
+        Returns: Json
       }
       update_tenant_profile: {
         Args: {

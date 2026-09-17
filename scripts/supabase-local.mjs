@@ -39,6 +39,11 @@ const w3eAdversarialTestScript = path.join(
   'scripts',
   'w3e-adversarial-test.mjs',
 )
+const w4aConcurrencyScript = path.join(
+  projectRoot,
+  'scripts',
+  'w4a-concurrency-test.mjs',
+)
 const expectedMigrationVersions = [
   '20260909000000',
   '20260910000000',
@@ -60,6 +65,7 @@ const expectedMigrationVersions = [
   '20260915001000',
   '20260915002000',
   '20260915003000',
+  '20260916000000',
 ]
 const expectedPublicTables = [
   'app_users',
@@ -73,12 +79,17 @@ const expectedPublicTables = [
   'tenant_profile_permissions',
   'tenant_permission_overrides',
   'history_entries',
+  'location_types',
+  'locations',
+  'cost_centers',
+  'sectors',
 ]
 const expectedPrivateTables = [
   'outbox_events',
   'command_idempotency',
   'event_handler_receipts',
   'worker_handler_controls',
+  'authorization_profile_rollouts',
 ]
 const supportedCommands = new Set(['start', 'stop', 'reset', 'types', 'smoke'])
 
@@ -267,15 +278,17 @@ switch (command) {
       'supabase/tests/w3c_idempotency_handler_contract.sql',
       'supabase/tests/w3d_delivery_runtime.sql',
       'supabase/tests/w3e_history_outbox_hardening.sql',
+      'supabase/tests/w4a_structural_catalog_foundation.sql',
     ])
 
     runLocalNodeScript(w3cConcurrencyScript)
     runLocalNodeScript(w3dConcurrencyScript)
     runLocalNodeScript(w3dRunnerTestScript)
     runLocalNodeScript(w3eAdversarialTestScript)
+    runLocalNodeScript(w4aConcurrencyScript)
 
     process.stdout.write(
-      'DB_SMOKE_OK: migrations W0/W1/W2A/W2B/W2C/W2D/W2E/W3A/W3B/W3C/W3D aplicadas, schema esperado presente e testes pgTAP W1A-W3E/concurrency/runner/adversarial aprovados.\n',
+      'DB_SMOKE_OK: migrations W0-W3/W4A aplicadas, schema esperado presente e testes pgTAP W1A-W4A/concurrency/runner/adversarial aprovados.\n',
     )
     break
   }

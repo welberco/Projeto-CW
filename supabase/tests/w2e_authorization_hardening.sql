@@ -44,6 +44,130 @@ where (
      and not (procedure.proname = 'create_tenant_profile' and procedure.pronargs = 4)
    );
 
+create temporary table w2e_expected_authorization_functions (
+  source_wave text not null,
+  schema_name text not null,
+  proname text not null,
+  prosecdef boolean not null,
+  primary key (schema_name, proname)
+);
+
+insert into w2e_expected_authorization_functions (source_wave, schema_name, proname, prosecdef)
+values
+  ('W1', 'private', 'set_updated_at_and_version', false),
+  ('W1', 'private', 'create_app_user_for_auth_identity', true),
+  ('W1', 'private', 'reject_audit_mutation', false),
+  ('W1', 'private', 'is_active_principal', true),
+  ('W1', 'private', 'can_access_tenant', true),
+  ('W1', 'private', 'normalize_invitation_email', false),
+  ('W1', 'private', 'sha256_hex', false),
+  ('W2', 'private', 'protect_authorization_catalog_state', false),
+  ('W2', 'private', 'protect_permission_catalog_mutation', false),
+  ('W2', 'private', 'bump_authorization_catalog_revision', false),
+  ('W2', 'private', 'protect_tenant_profile_mutation', false),
+  ('W2', 'private', 'protect_tenant_profile_permission_mutation', false),
+  ('W2', 'private', 'bump_tenant_profile_version_for_baseline', false),
+  ('W2', 'private', 'protect_tenant_permission_override_mutation', false),
+  ('W2', 'private', 'bump_membership_version_for_override', false),
+  ('W2', 'private', 'provision_tenant_authorization', false),
+  ('W2', 'private', 'enforce_membership_profile_integrity', false),
+  ('W2', 'private', 'enforce_invitation_target_profile_integrity', false),
+  ('W2', 'private', 'resolve_effective_scopes', true),
+  ('W2', 'private', 'has_effective_permission', true),
+  ('W2', 'private', 'resolve_profile_permission_ids', true),
+  ('W2', 'private', 'resolve_membership_permission_ids', true),
+  ('W2', 'private', 'can_delegate_permission', true),
+  ('W2', 'private', 'tenant_has_authorization_administrator', true),
+  ('W2', 'private', 'require_authorization_reason', false),
+  ('W2', 'private', 'lock_authorization_actor', true),
+  ('W2', 'private', 'assert_tenant_has_authorization_administrator', true),
+  ('W2', 'private', 'write_authorization_audit', true),
+  ('W1', 'public', 'bootstrap_initial_tenant', true),
+  ('W1', 'public', 'create_tenant_invitation', true),
+  ('W1', 'public', 'revoke_tenant_invitation', true),
+  ('W1', 'public', 'expire_tenant_invitation', true),
+  ('W1', 'public', 'accept_tenant_invitation', true),
+  ('W1', 'public', 'resolve_my_tenant_context', true),
+  ('W2', 'public', 'create_tenant_profile', true),
+  ('W2', 'public', 'update_tenant_profile', true),
+  ('W2', 'public', 'change_tenant_profile_status', true),
+  ('W2', 'public', 'set_tenant_profile_permission', true),
+  ('W2', 'public', 'assign_tenant_membership_profile', true),
+  ('W2', 'public', 'set_tenant_permission_override', true),
+  ('W2', 'public', 'delete_tenant_permission_override', true),
+  ('W2', 'public', 'change_tenant_membership_status', true),
+  ('W2', 'public', 'invite_tenant_user', true),
+  ('W2', 'public', 'revoke_tenant_invitation_authenticated', true),
+  ('W2', 'public', 'expire_tenant_invitation_authenticated', true),
+  ('W2', 'public', 'resolve_my_authorization', true),
+  ('W4A', 'private', 'apply_w4a_authorization_rollout', true),
+  ('W4A', 'private', 'protect_w4a_catalog_mutation', false),
+  ('W4A', 'private', 'can_access_w4a_catalog', true),
+  ('W4A', 'private', 'assert_w4a_catalog_access', true),
+  ('W4A', 'private', 'execute_w4a_catalog_command', true);
+
+create temporary table w2e_expected_public_security_definers (
+  routine regprocedure primary key
+);
+
+insert into w2e_expected_public_security_definers (routine)
+values
+  ('public.bootstrap_initial_tenant(uuid,text,uuid)'::regprocedure),
+  ('public.create_tenant_invitation(uuid,uuid,text,timestamptz,uuid,uuid)'::regprocedure),
+  ('public.revoke_tenant_invitation(uuid,uuid,uuid)'::regprocedure),
+  ('public.expire_tenant_invitation(uuid,uuid,uuid)'::regprocedure),
+  ('public.accept_tenant_invitation(text,uuid)'::regprocedure),
+  ('public.resolve_my_tenant_context(uuid)'::regprocedure),
+  ('public.create_tenant_profile(text,text,uuid)'::regprocedure),
+  ('public.create_tenant_profile(text,text,uuid,text)'::regprocedure),
+  ('public.update_tenant_profile(uuid,bigint,text,text,uuid)'::regprocedure),
+  ('public.change_tenant_profile_status(uuid,bigint,text,text,uuid)'::regprocedure),
+  ('public.set_tenant_profile_permission(uuid,uuid,boolean,bigint,text,uuid)'::regprocedure),
+  ('public.assign_tenant_membership_profile(uuid,uuid,bigint,text,uuid)'::regprocedure),
+  ('public.set_tenant_permission_override(uuid,uuid,text,bigint,text,bigint,uuid)'::regprocedure),
+  ('public.delete_tenant_permission_override(uuid,bigint,bigint,text,uuid)'::regprocedure),
+  ('public.change_tenant_membership_status(uuid,bigint,text,text,uuid)'::regprocedure),
+  ('public.invite_tenant_user(uuid,bigint,text,timestamptz,text,uuid)'::regprocedure),
+  ('public.revoke_tenant_invitation_authenticated(uuid,bigint,text,uuid)'::regprocedure),
+  ('public.expire_tenant_invitation_authenticated(uuid,bigint,text,uuid)'::regprocedure),
+  ('public.resolve_my_authorization()'::regprocedure),
+  ('public.claim_outbox_batch(text,integer)'::regprocedure),
+  ('public.read_profile_created_origin(uuid,text,uuid,bigint)'::regprocedure),
+  ('public.complete_outbox_event(uuid,text,uuid,bigint,integer,jsonb)'::regprocedure),
+  ('public.fail_outbox_event(uuid,text,uuid,bigint,text,text,text)'::regprocedure),
+  ('public.create_location_type(text,text,text,text,uuid,text)'::regprocedure),
+  ('public.update_location_type(uuid,bigint,text,text,text,text,uuid,text)'::regprocedure),
+  ('public.inactivate_location_type(uuid,bigint,text,uuid,text)'::regprocedure),
+  ('public.reactivate_location_type(uuid,bigint,text,uuid,text)'::regprocedure),
+  ('public.create_location(uuid,uuid,text,text,text,text,uuid,text)'::regprocedure),
+  ('public.update_location(uuid,bigint,uuid,text,text,text,text,uuid,text)'::regprocedure),
+  ('public.move_location(uuid,bigint,uuid,text,uuid,text)'::regprocedure),
+  ('public.inactivate_location(uuid,bigint,text,uuid,text)'::regprocedure),
+  ('public.reactivate_location(uuid,bigint,text,uuid,text)'::regprocedure),
+  ('public.create_cost_center(uuid,text,text,text,text,uuid,text)'::regprocedure),
+  ('public.update_cost_center(uuid,bigint,text,text,text,text,uuid,text)'::regprocedure),
+  ('public.move_cost_center(uuid,bigint,uuid,text,uuid,text)'::regprocedure),
+  ('public.inactivate_cost_center(uuid,bigint,text,uuid,text)'::regprocedure),
+  ('public.reactivate_cost_center(uuid,bigint,text,uuid,text)'::regprocedure),
+  ('public.create_sector(text,text,text,text,uuid,text)'::regprocedure),
+  ('public.update_sector(uuid,bigint,text,text,text,text,uuid,text)'::regprocedure),
+  ('public.inactivate_sector(uuid,bigint,text,uuid,text)'::regprocedure),
+  ('public.reactivate_sector(uuid,bigint,text,uuid,text)'::regprocedure),
+  ('public.list_location_types(text,text,integer,integer)'::regprocedure),
+  ('public.get_location_type(uuid)'::regprocedure),
+  ('public.lookup_location_types(text,integer)'::regprocedure),
+  ('public.list_locations(text,text,integer,integer)'::regprocedure),
+  ('public.get_location(uuid)'::regprocedure),
+  ('public.lookup_locations(text,integer)'::regprocedure),
+  ('public.list_location_children(uuid)'::regprocedure),
+  ('public.list_cost_centers(text,text,integer,integer)'::regprocedure),
+  ('public.get_cost_center(uuid)'::regprocedure),
+  ('public.lookup_cost_centers(text,integer)'::regprocedure),
+  ('public.list_cost_center_children(uuid)'::regprocedure),
+  ('public.list_sectors(text,text,integer,integer)'::regprocedure),
+  ('public.get_sector(uuid)'::regprocedure),
+  ('public.lookup_sectors(text,integer)'::regprocedure);
+
 -- Integrated RLS, grants, function and default-privilege inventory.
 select is(
   (
@@ -152,9 +276,71 @@ select is(
   'future versioned W1/W2 objects are closed by default for the migration owner'
 );
 
-select is((select count(*) from w2e_authorization_functions), 46::bigint, 'the W1/W2 function inventory contains 46 routines');
-select is((select count(*) from w2e_authorization_functions where prosecdef), 30::bigint, '30 authority-boundary routines are SECURITY DEFINER');
-select is((select count(*) from w2e_authorization_functions where not prosecdef), 16::bigint, '16 trigger or validation routines are SECURITY INVOKER');
+select is(
+  (
+    select count(*)
+    from (
+      select schema_name, proname, prosecdef from w2e_authorization_functions
+      except all
+      select schema_name, proname, prosecdef from w2e_expected_authorization_functions
+    ) as unexpected
+  ),
+  0::bigint,
+  'the authorization inventory contains no routine or security mode outside the explicit W0-W2 and W4A allowlist'
+);
+select is(
+  (
+    select count(*)
+    from (
+      select schema_name, proname, prosecdef from w2e_expected_authorization_functions
+      except all
+      select schema_name, proname, prosecdef from w2e_authorization_functions
+    ) as missing
+  ),
+  0::bigint,
+  'every explicitly allowlisted W0-W2 and W4A routine remains present with its approved security mode'
+);
+select is(
+  (
+    select count(*)
+    from w2e_authorization_functions as actual
+    join w2e_expected_authorization_functions as expected
+      using (schema_name, proname, prosecdef)
+    where expected.source_wave = 'W4A'
+  ),
+  5::bigint,
+  'each W4A private helper has its individually approved security mode'
+);
+select is(
+  (
+    select count(*)
+    from (
+      select procedure.oid::regprocedure
+      from pg_catalog.pg_proc as procedure
+      join pg_catalog.pg_namespace as namespace on namespace.oid = procedure.pronamespace
+      where namespace.nspname = 'public' and procedure.prosecdef
+      except all
+      select routine from w2e_expected_public_security_definers
+    ) as unexpected
+  ),
+  0::bigint,
+  'no unknown public SECURITY DEFINER authority boundary exists'
+);
+select is(
+  (
+    select count(*)
+    from information_schema.routine_privileges
+    where routine_schema = 'private'
+      and routine_name in (
+        'apply_w4a_authorization_rollout', 'protect_w4a_catalog_mutation',
+        'can_access_w4a_catalog', 'assert_w4a_catalog_access',
+        'execute_w4a_catalog_command'
+      )
+      and grantee in ('PUBLIC', 'anon', 'authenticated', 'service_role', 'cw_worker')
+  ),
+  0::bigint,
+  'W4A private helpers expose no execution grant to client or technical API roles'
+);
 select is(
   (
     select count(*)

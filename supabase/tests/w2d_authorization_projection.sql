@@ -74,10 +74,58 @@ select * from public.bootstrap_initial_tenant(
 grant select on w2d_bootstrap to authenticated;
 
 create temporary table w2d_expected_permissions as
-select pg_catalog.array_agg(code order by code) as codes
-from public.permission_catalog
-where status = 'active';
+with approved_w2(code) as (
+  values
+    ('core.users.read.all_tenant'),
+    ('core.users.invite.all_tenant'),
+    ('core.users.assign_profile.all_tenant'),
+    ('core.users.manage_overrides.all_tenant'),
+    ('core.users.change_status.all_tenant'),
+    ('core.profiles.read.all_tenant'),
+    ('core.profiles.create.all_tenant'),
+    ('core.profiles.update.all_tenant'),
+    ('core.profiles.activate.all_tenant'),
+    ('core.profiles.inactivate.all_tenant'),
+    ('core.profiles.change_permissions.all_tenant')
+), approved_w4a(code) as (
+  values
+    ('shared.location_types.read.all_tenant'),
+    ('shared.location_types.lookup.all_tenant'),
+    ('shared.location_types.create.all_tenant'),
+    ('shared.location_types.update.all_tenant'),
+    ('shared.location_types.inactivate.all_tenant'),
+    ('shared.locations.read.all_tenant'),
+    ('shared.locations.lookup.all_tenant'),
+    ('shared.locations.create.all_tenant'),
+    ('shared.locations.update.all_tenant'),
+    ('shared.locations.move.all_tenant'),
+    ('shared.locations.inactivate.all_tenant'),
+    ('shared.cost_centers.read.all_tenant'),
+    ('shared.cost_centers.lookup.all_tenant'),
+    ('shared.cost_centers.create.all_tenant'),
+    ('shared.cost_centers.update.all_tenant'),
+    ('shared.cost_centers.move.all_tenant'),
+    ('shared.cost_centers.inactivate.all_tenant'),
+    ('shared.sectors.read.all_tenant'),
+    ('shared.sectors.lookup.all_tenant'),
+    ('shared.sectors.create.all_tenant'),
+    ('shared.sectors.update.all_tenant'),
+    ('shared.sectors.inactivate.all_tenant')
+)
+select
+  pg_catalog.array_agg(approved.code order by approved.code) as codes,
+  count(*)::integer as permission_count,
+  count(*) filter (where approved.source_wave = 'W2')::integer as w2_permission_count,
+  count(*) filter (where approved.source_wave = 'W4A')::integer as w4a_permission_count
+from (
+  select code, 'W2'::text as source_wave from approved_w2
+  union all
+  select code, 'W4A'::text as source_wave from approved_w4a
+) as approved;
 grant select on w2d_expected_permissions to authenticated;
+
+select is((select w2_permission_count from w2d_expected_permissions), 11, 'the projection fixture preserves the exact W2 permission allowlist');
+select is((select w4a_permission_count from w2d_expected_permissions), 22, 'the projection fixture recognizes only the approved W4A manager extension');
 
 set local "request.jwt.claim.sub" = '18000000-0000-4000-8000-000000000002';
 set local role authenticated;
@@ -117,8 +165,8 @@ select is(
 );
 select is(
   (select cardinality(permission_codes) from public.resolve_my_authorization()),
-  11,
-  'the manager receives exactly the eleven effective W2A permission codes'
+  (select permission_count from w2d_expected_permissions),
+  'the manager receives exactly the allowlisted W2 plus W4A permission codes'
 );
 select is(
   (

@@ -3,6 +3,72 @@ begin;
 set local search_path = public, extensions, pg_catalog;
 select no_plan();
 
+create temporary table w2b_expected_template_permissions (
+  template_key text not null,
+  permission_code text not null,
+  source_wave text not null,
+  primary key (template_key, permission_code)
+);
+
+insert into w2b_expected_template_permissions (template_key, permission_code, source_wave)
+values
+  ('manager', 'core.users.read.all_tenant', 'W2'),
+  ('manager', 'core.users.invite.all_tenant', 'W2'),
+  ('manager', 'core.users.assign_profile.all_tenant', 'W2'),
+  ('manager', 'core.users.manage_overrides.all_tenant', 'W2'),
+  ('manager', 'core.users.change_status.all_tenant', 'W2'),
+  ('manager', 'core.profiles.read.all_tenant', 'W2'),
+  ('manager', 'core.profiles.create.all_tenant', 'W2'),
+  ('manager', 'core.profiles.update.all_tenant', 'W2'),
+  ('manager', 'core.profiles.activate.all_tenant', 'W2'),
+  ('manager', 'core.profiles.inactivate.all_tenant', 'W2'),
+  ('manager', 'core.profiles.change_permissions.all_tenant', 'W2'),
+  ('manager', 'shared.location_types.read.all_tenant', 'W4A'),
+  ('manager', 'shared.location_types.lookup.all_tenant', 'W4A'),
+  ('manager', 'shared.location_types.create.all_tenant', 'W4A'),
+  ('manager', 'shared.location_types.update.all_tenant', 'W4A'),
+  ('manager', 'shared.location_types.inactivate.all_tenant', 'W4A'),
+  ('manager', 'shared.locations.read.all_tenant', 'W4A'),
+  ('manager', 'shared.locations.lookup.all_tenant', 'W4A'),
+  ('manager', 'shared.locations.create.all_tenant', 'W4A'),
+  ('manager', 'shared.locations.update.all_tenant', 'W4A'),
+  ('manager', 'shared.locations.move.all_tenant', 'W4A'),
+  ('manager', 'shared.locations.inactivate.all_tenant', 'W4A'),
+  ('manager', 'shared.cost_centers.read.all_tenant', 'W4A'),
+  ('manager', 'shared.cost_centers.lookup.all_tenant', 'W4A'),
+  ('manager', 'shared.cost_centers.create.all_tenant', 'W4A'),
+  ('manager', 'shared.cost_centers.update.all_tenant', 'W4A'),
+  ('manager', 'shared.cost_centers.move.all_tenant', 'W4A'),
+  ('manager', 'shared.cost_centers.inactivate.all_tenant', 'W4A'),
+  ('manager', 'shared.sectors.read.all_tenant', 'W4A'),
+  ('manager', 'shared.sectors.lookup.all_tenant', 'W4A'),
+  ('manager', 'shared.sectors.create.all_tenant', 'W4A'),
+  ('manager', 'shared.sectors.update.all_tenant', 'W4A'),
+  ('manager', 'shared.sectors.inactivate.all_tenant', 'W4A'),
+  ('technician', 'shared.locations.lookup.all_tenant', 'W4A'),
+  ('technician', 'shared.cost_centers.lookup.all_tenant', 'W4A'),
+  ('technician', 'shared.sectors.lookup.all_tenant', 'W4A'),
+  ('assistant', 'shared.locations.lookup.all_tenant', 'W4A'),
+  ('assistant', 'shared.cost_centers.lookup.all_tenant', 'W4A'),
+  ('assistant', 'shared.sectors.lookup.all_tenant', 'W4A'),
+  ('requester', 'shared.locations.lookup.all_tenant', 'W4A'),
+  ('requester', 'shared.sectors.lookup.all_tenant', 'W4A');
+
+select is(
+  (
+    select count(*)
+    from public.permission_catalog
+    where code in (
+      'shared.locations.use.all_tenant',
+      'shared.location_types.use.all_tenant',
+      'shared.cost_centers.use.all_tenant',
+      'shared.sectors.use.all_tenant'
+    )
+  ),
+  0::bigint,
+  'the four removed generic W4A use permissions remain absent'
+);
+
 -- Physical model and closed client surface.
 select has_table('public', 'tenant_profiles', 'tenant profiles exist');
 select has_table('public', 'tenant_profile_permissions', 'tenant profile baseline exists');
@@ -178,29 +244,92 @@ select is(
   'the approved default names are copied as editable display data'
 );
 select is(
-  (select count(*) from public.tenant_profiles where template_version = 1 and status = 'active'),
+  (
+    select count(*)
+    from public.tenant_profiles as profile
+    join private.authorization_profile_templates as template
+      on template.template_key = profile.template_key
+     and template.template_version = profile.template_version
+    where profile.status = 'active' and template.status = 'active'
+  ),
   4::bigint,
-  'template provenance and active lifecycle are recorded'
+  'tenant profiles retain authoritative current system-template provenance'
 );
 select is(
   (
     select count(*)
     from public.tenant_profile_permissions as baseline
     join public.tenant_profiles as profile on profile.id = baseline.profile_id
-    where profile.template_key = 'manager'
+    join public.permission_catalog as permission on permission.id = baseline.permission_id
+    join w2b_expected_template_permissions as expected
+      on expected.template_key = profile.template_key
+     and expected.permission_code = permission.code
+    where profile.template_key = 'manager' and expected.source_wave = 'W2'
   ),
   11::bigint,
-  'Gestor receives the exact eleven administrative baseline grants'
+  'Gestor retains every approved W2 administrative baseline grant'
 );
 select is(
   (
     select count(*)
     from public.tenant_profile_permissions as baseline
     join public.tenant_profiles as profile on profile.id = baseline.profile_id
+    join public.permission_catalog as permission on permission.id = baseline.permission_id
+    join w2b_expected_template_permissions as expected
+      on expected.template_key = profile.template_key
+     and expected.permission_code = permission.code
     where profile.template_key in ('technician', 'assistant', 'requester')
+      and expected.source_wave = 'W2'
   ),
   0::bigint,
-  'Técnico, Auxiliar and Solicitante receive no premature functional grants'
+  'Técnico, Auxiliar and Solicitante receive no W2 administrative grants'
+);
+select is(
+  (
+    select count(*)
+    from (
+      select profile.template_key, permission.code
+      from public.tenant_profile_permissions as baseline
+      join public.tenant_profiles as profile on profile.id = baseline.profile_id
+      join public.permission_catalog as permission on permission.id = baseline.permission_id
+      where profile.template_key is not null
+      except
+      select template_key, permission_code from w2b_expected_template_permissions
+    ) as unexpected
+  ),
+  0::bigint,
+  'official profiles receive no permission outside the explicit W2 and W4A allowlists'
+);
+select is(
+  (
+    select count(*)
+    from (
+      select template_key, permission_code from w2b_expected_template_permissions
+      except
+      select profile.template_key, permission.code
+      from public.tenant_profile_permissions as baseline
+      join public.tenant_profiles as profile on profile.id = baseline.profile_id
+      join public.permission_catalog as permission on permission.id = baseline.permission_id
+      where profile.template_key is not null
+    ) as missing
+  ),
+  0::bigint,
+  'official profiles receive every permission explicitly approved by W2 and W4A'
+);
+select is(
+  private.apply_w4a_authorization_rollout((select tenant_id from w2b_bootstrap)),
+  0,
+  'W4A rollout records already-current profiles without adding duplicate grants'
+);
+select is(
+  (select count(*) from private.authorization_profile_rollouts where tenant_id = (select tenant_id from w2b_bootstrap) and rollout_key = 'w4_catalog_baseline_v1'),
+  4::bigint,
+  'W4A rollout provenance is recorded once per authoritative system profile'
+);
+select is(
+  private.apply_w4a_authorization_rollout((select tenant_id from w2b_bootstrap)),
+  0,
+  'W4A rollout replay is idempotent'
 );
 select is(
   (
@@ -281,11 +410,16 @@ select is(
     select count(*)
     from public.tenant_profile_permissions as baseline
     join public.tenant_profiles as profile on profile.id = baseline.profile_id
+    join public.permission_catalog as permission on permission.id = baseline.permission_id
+    join w2b_expected_template_permissions as expected
+      on expected.permission_code = permission.code
+     and expected.template_key = profile.template_key
     where profile.tenant_id = (select tenant_id from w2b_bootstrap)
       and profile.template_key = 'manager'
+      and expected.source_wave = 'W2'
   ),
   11::bigint,
-  'renaming Gestor does not change its baseline because the name is not authority'
+  'renaming Gestor does not change its W2 baseline because the name is not authority'
 );
 
 delete from public.tenant_profile_permissions
@@ -370,6 +504,21 @@ values (
   'active',
   '16000000-0000-4000-8000-000000000001',
   '16000000-0000-4000-8000-000000000001'
+);
+
+select is(
+  private.apply_w4a_authorization_rollout((select tenant_id from w2b_bootstrap)),
+  0,
+  'W4A rollout replay remains a no-op after a custom profile is created'
+);
+select is(
+  (
+    select count(*)
+    from public.tenant_profile_permissions
+    where profile_id = '96000000-0000-4000-8000-000000000010'
+  ),
+  0::bigint,
+  'custom profiles receive no silent W2 or W4A baseline grant'
 );
 
 select throws_ok(

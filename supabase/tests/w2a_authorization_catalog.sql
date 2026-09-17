@@ -3,6 +3,31 @@ begin;
 set local search_path = public, extensions, pg_catalog;
 select no_plan();
 
+create temporary table w2a_expected_permissions (
+  id uuid primary key,
+  code text not null unique,
+  module_code text not null,
+  resource_code text not null,
+  action_code text not null,
+  scope public.authorization_scope not null
+);
+
+insert into w2a_expected_permissions (
+  id, code, module_code, resource_code, action_code, scope
+)
+values
+  ('91000000-0000-4000-8000-000000000001', 'core.users.read.all_tenant', 'core', 'users', 'read', 'ALL_TENANT'),
+  ('91000000-0000-4000-8000-000000000002', 'core.users.invite.all_tenant', 'core', 'users', 'invite', 'ALL_TENANT'),
+  ('91000000-0000-4000-8000-000000000003', 'core.users.assign_profile.all_tenant', 'core', 'users', 'assign_profile', 'ALL_TENANT'),
+  ('91000000-0000-4000-8000-000000000004', 'core.users.manage_overrides.all_tenant', 'core', 'users', 'manage_overrides', 'ALL_TENANT'),
+  ('91000000-0000-4000-8000-000000000005', 'core.users.change_status.all_tenant', 'core', 'users', 'change_status', 'ALL_TENANT'),
+  ('91000000-0000-4000-8000-000000000006', 'core.profiles.read.all_tenant', 'core', 'profiles', 'read', 'ALL_TENANT'),
+  ('91000000-0000-4000-8000-000000000007', 'core.profiles.create.all_tenant', 'core', 'profiles', 'create', 'ALL_TENANT'),
+  ('91000000-0000-4000-8000-000000000008', 'core.profiles.update.all_tenant', 'core', 'profiles', 'update', 'ALL_TENANT'),
+  ('91000000-0000-4000-8000-000000000009', 'core.profiles.activate.all_tenant', 'core', 'profiles', 'activate', 'ALL_TENANT'),
+  ('91000000-0000-4000-8000-000000000010', 'core.profiles.inactivate.all_tenant', 'core', 'profiles', 'inactivate', 'ALL_TENANT'),
+  ('91000000-0000-4000-8000-000000000011', 'core.profiles.change_permissions.all_tenant', 'core', 'profiles', 'change_permissions', 'ALL_TENANT');
+
 -- Physical model and exact scope taxonomy.
 select has_table('public', 'permission_catalog', 'permission catalog exists');
 select has_table('private', 'authorization_catalog_state', 'catalog revision state exists');
@@ -64,27 +89,27 @@ select is(
   'permission catalog has no permissive client policy in W2A'
 );
 
--- Deterministic minimal platform seed.
-select is((select count(*) from public.permission_catalog), 11::bigint, 'exactly eleven administrative combinations are seeded');
+-- Deterministic W2 platform seed. Later waves may extend the global catalog.
+select is(
+  (
+    select count(*)
+    from w2a_expected_permissions as expected
+    join public.permission_catalog as permission
+      on permission.id = expected.id
+     and permission.code = expected.code
+     and permission.module_code = expected.module_code
+     and permission.resource_code = expected.resource_code
+     and permission.action_code = expected.action_code
+     and permission.scope = expected.scope
+  ),
+  11::bigint,
+  'the exact eleven W2 permission identities and combinations remain present'
+);
 
 select is(
   (
-    with expected(id, code) as (
-      values
-        ('91000000-0000-4000-8000-000000000001'::uuid, 'core.users.read.all_tenant'),
-        ('91000000-0000-4000-8000-000000000002'::uuid, 'core.users.invite.all_tenant'),
-        ('91000000-0000-4000-8000-000000000003'::uuid, 'core.users.assign_profile.all_tenant'),
-        ('91000000-0000-4000-8000-000000000004'::uuid, 'core.users.manage_overrides.all_tenant'),
-        ('91000000-0000-4000-8000-000000000005'::uuid, 'core.users.change_status.all_tenant'),
-        ('91000000-0000-4000-8000-000000000006'::uuid, 'core.profiles.read.all_tenant'),
-        ('91000000-0000-4000-8000-000000000007'::uuid, 'core.profiles.create.all_tenant'),
-        ('91000000-0000-4000-8000-000000000008'::uuid, 'core.profiles.update.all_tenant'),
-        ('91000000-0000-4000-8000-000000000009'::uuid, 'core.profiles.activate.all_tenant'),
-        ('91000000-0000-4000-8000-000000000010'::uuid, 'core.profiles.inactivate.all_tenant'),
-        ('91000000-0000-4000-8000-000000000011'::uuid, 'core.profiles.change_permissions.all_tenant')
-    )
     select count(*)
-    from expected
+    from w2a_expected_permissions as expected
     join public.permission_catalog as permission
       using (id, code)
   ),
@@ -94,17 +119,17 @@ select is(
 
 select is(
   (select count(distinct (module_code, resource_code, action_code, scope)) from public.permission_catalog),
-  11::bigint,
-  'every seeded Resource + Action + Scope combination is structurally unique'
+  (select count(*) from public.permission_catalog),
+  'every global Resource + Action + Scope combination remains structurally unique'
 );
 
-select is((select count(distinct code) from public.permission_catalog), 11::bigint, 'every permission code is unique');
-select is((select count(*) from public.permission_catalog where scope <> 'ALL_TENANT'), 0::bigint, 'administrative seed uses only ALL_TENANT inside the current tenant');
-select is((select count(*) from public.permission_catalog where module_code <> 'core'), 0::bigint, 'no future module catalog is seeded');
-select is((select count(*) from public.permission_catalog where resource_code not in ('users', 'profiles')), 0::bigint, 'only users and profiles resources are seeded');
-select is((select count(*) from public.permission_catalog where required_entitlement_key is not null), 0::bigint, 'core administrative permissions do not duplicate entitlement');
-select is((select count(*) from public.permission_catalog where not tenant_delegable), 0::bigint, 'the eleven approved tenant combinations carry delegability metadata');
-select is((select count(*) from public.permission_catalog where status <> 'active'), 0::bigint, 'all seeded combinations start active');
+select is((select count(distinct code) from public.permission_catalog), (select count(*) from public.permission_catalog), 'every global permission code remains unique');
+select is((select count(*) from public.permission_catalog where id in (select id from w2a_expected_permissions) and scope <> 'ALL_TENANT'), 0::bigint, 'W2 administrative seed uses only ALL_TENANT inside the current tenant');
+select is((select count(*) from public.permission_catalog where id in (select id from w2a_expected_permissions) and module_code <> 'core'), 0::bigint, 'W2 seed contains no module outside core');
+select is((select count(*) from public.permission_catalog where id in (select id from w2a_expected_permissions) and resource_code not in ('users', 'profiles')), 0::bigint, 'W2 seed contains only users and profiles resources');
+select is((select count(*) from public.permission_catalog where id in (select id from w2a_expected_permissions) and required_entitlement_key is not null), 0::bigint, 'W2 core administrative permissions do not duplicate entitlement');
+select is((select count(*) from public.permission_catalog where id in (select id from w2a_expected_permissions) and not tenant_delegable), 0::bigint, 'the eleven approved W2 combinations carry delegability metadata');
+select is((select count(*) from public.permission_catalog where id in (select id from w2a_expected_permissions) and status <> 'active'), 0::bigint, 'all W2 combinations remain active');
 select is((select count(*) from public.permission_catalog where code like '%global_admin%' or code like '%platform%'), 0::bigint, 'Global Admin is absent from the tenant permission catalog');
 
 select is((select count(*) from private.authorization_profile_templates), 4::bigint, 'four platform profile templates are seeded');
@@ -112,15 +137,16 @@ select is(
   (
     select count(*)
     from private.authorization_profile_templates
-    where (id, template_key, template_version, default_name) in (
-      ('92000000-0000-4000-8000-000000000001', 'manager', 1, 'Gestor'),
-      ('92000000-0000-4000-8000-000000000002', 'technician', 1, 'Técnico'),
-      ('92000000-0000-4000-8000-000000000003', 'assistant', 1, 'Auxiliar'),
-      ('92000000-0000-4000-8000-000000000004', 'requester', 1, 'Solicitante')
+    where (id, template_key, default_name) in (
+      ('92000000-0000-4000-8000-000000000001', 'manager', 'Gestor'),
+      ('92000000-0000-4000-8000-000000000002', 'technician', 'Técnico'),
+      ('92000000-0000-4000-8000-000000000003', 'assistant', 'Auxiliar'),
+      ('92000000-0000-4000-8000-000000000004', 'requester', 'Solicitante')
     )
+      and template_version >= 1
   ),
   4::bigint,
-  'template identities, versions and initial labels are deterministic'
+  'template identities and initial labels remain deterministic across versioned extensions'
 );
 select is(
   (
@@ -128,6 +154,7 @@ select is(
     from private.authorization_profile_template_permissions as template_permission
     join private.authorization_profile_templates as template
       on template.id = template_permission.template_id
+    join w2a_expected_permissions as expected on expected.id = template_permission.permission_id
     where template.template_key = 'manager'
   ),
   11::bigint,
@@ -139,6 +166,7 @@ select is(
     from private.authorization_profile_template_permissions as template_permission
     join private.authorization_profile_templates as template
       on template.id = template_permission.template_id
+    join w2a_expected_permissions as expected on expected.id = template_permission.permission_id
     where template.template_key in ('technician', 'assistant', 'requester')
   ),
   0::bigint,
@@ -171,7 +199,7 @@ select throws_ok(
       id, code, module_code, resource_code, action_code, scope,
       tenant_delegable, label_key
     ) values (
-      '93000000-0000-4000-8000-000000000001',
+      'f2a00000-0000-4000-8000-000000000001',
       'core.users.update.own', 'core', 'users', 'update', 'ASSIGNED',
       true, 'authorization.permissions.test.label'
     )
@@ -187,7 +215,7 @@ select throws_ok(
       id, code, module_code, resource_code, action_code, scope,
       required_entitlement_key, tenant_delegable, label_key
     ) values (
-      '93000000-0000-4000-8000-000000000002',
+      'f2a00000-0000-4000-8000-000000000002',
       'core.users.update.own', 'core', 'users', 'update', 'OWN',
       'Invalid Entitlement', true, 'authorization.permissions.test.label'
     )
@@ -203,7 +231,7 @@ select throws_ok(
       id, code, module_code, resource_code, action_code, scope,
       tenant_delegable, label_key, status
     ) values (
-      '93000000-0000-4000-8000-000000000003',
+      'f2a00000-0000-4000-8000-000000000003',
       'core.users.update.own', 'core', 'users', 'update', 'OWN',
       true, 'authorization.permissions.test.label', 'deprecated'
     )
@@ -220,14 +248,14 @@ create temporary table w2a_revision_snapshot as
 select catalog_revision
 from private.authorization_catalog_state;
 
-select is((select catalog_revision from w2a_revision_snapshot), 12::bigint, 'initial catalog revision deterministically reflects the eleven seeded rows');
+select ok((select catalog_revision > 0 from w2a_revision_snapshot), 'catalog revision is initialized before mutation checks');
 
 insert into public.permission_catalog (
   id, code, module_code, resource_code, action_code, scope,
   tenant_delegable, label_key
 )
 values (
-  '93000000-0000-4000-8000-000000000010',
+  'f2a00000-0000-4000-8000-000000000010',
   'core.users.update.own', 'core', 'users', 'update', 'OWN',
   true, 'authorization.permissions.test.label'
 );
@@ -240,7 +268,7 @@ select is(
 
 update public.permission_catalog
 set status = 'deprecated', deprecated_at = statement_timestamp()
-where id = '93000000-0000-4000-8000-000000000010';
+where id = 'f2a00000-0000-4000-8000-000000000010';
 
 select is(
   (select catalog_revision from private.authorization_catalog_state),
@@ -252,7 +280,7 @@ select throws_ok(
   $$
     update public.permission_catalog
     set code = 'core.users.update.assigned'
-    where id = '93000000-0000-4000-8000-000000000010'
+    where id = 'f2a00000-0000-4000-8000-000000000010'
   $$,
   'P0001',
   'PERMISSION_CATALOG_IDENTITY_IMMUTABLE',
@@ -262,7 +290,7 @@ select throws_ok(
 select throws_ok(
   $$
     delete from public.permission_catalog
-    where id = '93000000-0000-4000-8000-000000000010'
+    where id = 'f2a00000-0000-4000-8000-000000000010'
   $$,
   'P0001',
   'PERMISSION_CATALOG_HARD_DELETE_FORBIDDEN',
@@ -405,7 +433,7 @@ select throws_ok(
       id, code, module_code, resource_code, action_code, scope,
       tenant_delegable, label_key
     ) values (
-      '93000000-0000-4000-8000-000000000020',
+      'f2a00000-0000-4000-8000-000000000020',
       'core.users.update.team', 'core', 'users', 'update', 'TEAM',
       true, 'authorization.permissions.test.label'
     )

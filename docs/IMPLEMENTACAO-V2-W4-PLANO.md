@@ -480,7 +480,90 @@ Templates atualizados valem integralmente para tenants criados depois da W4.
 Não há sincronização genérica contínua: qualquer baseline futuro exige outro
 rollout versionado e aprovado. O rollout W4 não é precedente para auto-sync.
 
-### 8.3 Global Admin CW
+### 8.3 Ratificação pós-auditoria W4A — `location_types`
+
+Em 2026-09-16, antes do fechamento do gate W4A, foi ratificado que Tipos de
+Local constituem o Resource de autorização independente `location_types`. Esta
+é uma decisão local à W4: a matriz originalmente congelada na seção 8 listava
+`locations`, mas omitia `location_types` como Resource, embora o plano já
+tratasse Tipo de Local como cadastro, agregado e tabela próprios. A lacuna foi
+identificada em auditoria e resolvida deliberadamente; este registro não
+reescreve a matriz original como se a decisão já estivesse presente nela.
+
+A boundary independente separa a gestão da taxonomia da gestão dos registros
+físicos de Local e permite mínimo privilégio e Perfis customizados. Por exemplo,
+um Supervisor Predial pode receber mutations de `locations` e somente lookup de
+`location_types`, sem receber create, update ou inactivate da taxonomia. A
+autorização continua sendo a combinação exata Resource + Action + Scope da W2;
+nome visível de Perfil e role não participam da decisão.
+
+O baseline W4A é deliberadamente limitado ao escopo atual: `manager` recebe a
+administração necessária de `location_types`; `technician`, `assistant` e
+`requester` não recebem permissions desse Resource. Isso não congela ausência
+permanente de `lookup` para waves futuras: qualquer grant adicional dependerá
+de necessidade funcional real e de rollout explícito e versionado da wave
+consumidora. Custom Profiles permanecem fora de expansão silenciosa e exact
+overrides são preservados.
+
+A mesma auditoria confirmou que `read` e `lookup` são boundaries distintas na
+implementação W4A:
+
+- `read` autoriza list/detail administrativo, inclusive registros ativos e
+  inativos e campos de gestão como descrição, status, versão e timestamps;
+- `lookup` autoriza somente selector/autocomplete de registros ativos, com
+  projeção mínima `id`, `code` e `name`.
+
+### 8.4 Decisão pós-congelamento — remoção de `use` na W4A
+
+A matriz e os baselines originalmente congelados nas seções 8 e 8.1 incluíam
+`use` para `locations`, `cost_centers` e `sectors`. A primeira implementação
+W4A também havia acrescentado `location_types.use` ao novo Resource ratificado.
+Antes do gate W4A, uma auditoria semântica e adversarial demonstrou que nenhuma
+das quatro permissions possuía consumidor em RLS, commands, gateway ou projeção
+de autorização, nem representava authority boundary própria. Essas partes da
+matriz original ficam, portanto, explicitamente substituídas por esta decisão;
+o registro histórico acima não deve ser interpretado como política vigente da
+W4A.
+
+A política aprovada para referências é:
+
+- a mutation é autorizada pela permission correspondente ao Resource
+  efetivamente alterado;
+- referências e FKs recebidas pelo command são revalidadas server-side quanto
+  a tenant, existência, estado, elegibilidade e invariantes de domínio;
+- `lookup` autoriza somente descoberta e projeção mínima, não constitui
+  authority para mutation nem pré-requisito para associação;
+- conhecer ou adivinhar um UUID não concede autoridade;
+- possuir `lookup` sem a permission da mutation principal não autoriza a
+  mutation; possuir a permission da mutation principal não exige genericamente
+  `use` sobre cada FK;
+- permission semelhante a `use` só poderá ser criada em wave futura quando
+  houver authority boundary concreta, documentada, consumida e testada.
+
+Create/update de Local continua exigindo `locations.create` ou
+`locations.update` e revalidando server-side que o Tipo informado existe, está
+ativo e pertence ao mesmo tenant. UUID inexistente, inativo ou cross-tenant
+falha fechado. O Resource independente `location_types` permanece ratificado,
+agora sem `use`.
+
+| Resource W4A | Actions vigentes | Total |
+| --- | --- | ---: |
+| `locations` | read, lookup, create, update, move, inactivate, reactivate | 7 |
+| `location_types` | read, lookup, create, update, inactivate, reactivate | 6 |
+| `cost_centers` | read, lookup, create, update, move, inactivate, reactivate | 7 |
+| `sectors` | read, lookup, create, update, inactivate, reactivate | 6 |
+
+O catálogo W4A passa a conter 26 permissions. Foram removidas
+`shared.locations.use.all_tenant`,
+`shared.location_types.use.all_tenant`,
+`shared.cost_centers.use.all_tenant` e
+`shared.sectors.use.all_tenant`, juntamente com seus grants de baseline. Nenhuma
+permission substituta foi criada. Os demais grants permanecem inalterados:
+waves funcionais futuras poderão acrescentar `lookup` somente por rollout
+explícito e versionado, sem expansão silenciosa de Custom Profiles e sem alterar
+exact overrides.
+
+### 8.5 Global Admin CW
 
 Global Admin não é System Profile Template nem Tenant Profile Instance. W4
 MUST NOT inserir Perfil “global”, grant tenant, bypass RLS ou membership
@@ -488,7 +571,7 @@ silenciosa. Operação futura de plataforma dentro de tenant continua sujeita a
 `PLAT-01`: identidade/capability de plataforma, tenant alvo explícito, boundary
 allowlisted, motivo e Audit. Global Admin nunca é “super Gestor tenant”.
 
-### 8.4 AUTH-02 nos commands críticos
+### 8.6 AUTH-02 nos commands críticos
 
 Todos os commands mutáveis W4 MUST executar:
 

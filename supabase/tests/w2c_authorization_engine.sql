@@ -201,11 +201,11 @@ insert into public.permission_catalog (
   required_entitlement_key, tenant_delegable, label_key
 )
 values
-  ('93000000-0000-4000-8000-000000000001', 'probe.authorization.read.own', 'probe', 'authorization', 'read', 'OWN', 'maintenance', true, 'probe.authorization.read.own.label'),
-  ('93000000-0000-4000-8000-000000000002', 'probe.authorization.read.assigned', 'probe', 'authorization', 'read', 'ASSIGNED', 'maintenance', true, 'probe.authorization.read.assigned.label'),
-  ('93000000-0000-4000-8000-000000000003', 'probe.authorization.read.team', 'probe', 'authorization', 'read', 'TEAM', 'maintenance', true, 'probe.authorization.read.team.label'),
-  ('93000000-0000-4000-8000-000000000004', 'probe.authorization.read.all_tenant', 'probe', 'authorization', 'read', 'ALL_TENANT', 'maintenance', true, 'probe.authorization.read.all_tenant.label'),
-  ('93000000-0000-4000-8000-000000000005', 'probe.authorization.delegate.own', 'probe', 'authorization', 'delegate', 'OWN', null, false, 'probe.authorization.delegate.own.label');
+  ('f2c00000-0000-4000-8000-000000000001', 'probe.authorization.read.own', 'probe', 'authorization', 'read', 'OWN', 'maintenance', true, 'probe.authorization.read.own.label'),
+  ('f2c00000-0000-4000-8000-000000000002', 'probe.authorization.read.assigned', 'probe', 'authorization', 'read', 'ASSIGNED', 'maintenance', true, 'probe.authorization.read.assigned.label'),
+  ('f2c00000-0000-4000-8000-000000000003', 'probe.authorization.read.team', 'probe', 'authorization', 'read', 'TEAM', 'maintenance', true, 'probe.authorization.read.team.label'),
+  ('f2c00000-0000-4000-8000-000000000004', 'probe.authorization.read.all_tenant', 'probe', 'authorization', 'read', 'ALL_TENANT', 'maintenance', true, 'probe.authorization.read.all_tenant.label'),
+  ('f2c00000-0000-4000-8000-000000000005', 'probe.authorization.delegate.own', 'probe', 'authorization', 'delegate', 'OWN', null, false, 'probe.authorization.delegate.own.label');
 
 insert into public.tenant_profile_permissions (tenant_id, profile_id, permission_id, created_by)
 select
@@ -216,10 +216,10 @@ cross join public.permission_catalog as permission
 where profile.tenant_id = (select tenant_id from w2c_tenant_a)
   and profile.template_key = 'manager'
   and permission.id in (
-    '93000000-0000-4000-8000-000000000001',
-    '93000000-0000-4000-8000-000000000003',
-    '93000000-0000-4000-8000-000000000004',
-    '93000000-0000-4000-8000-000000000005'
+    'f2c00000-0000-4000-8000-000000000001',
+    'f2c00000-0000-4000-8000-000000000003',
+    'f2c00000-0000-4000-8000-000000000004',
+    'f2c00000-0000-4000-8000-000000000005'
   );
 
 insert into public.tenant_permission_overrides (
@@ -234,8 +234,8 @@ from public.tenant_memberships as membership
 cross join public.permission_catalog as permission
 where membership.user_id = '17000000-0000-4000-8000-000000000001'
   and permission.id in (
-    '93000000-0000-4000-8000-000000000002',
-    '93000000-0000-4000-8000-000000000004'
+    'f2c00000-0000-4000-8000-000000000002',
+    'f2c00000-0000-4000-8000-000000000004'
   );
 
 set local "request.jwt.claim.sub" = '17000000-0000-4000-8000-000000000001';
@@ -287,7 +287,7 @@ where tenant_id = (select tenant_id from w2c_tenant_a)
 
 update public.permission_catalog
 set status = 'deprecated', deprecated_at = statement_timestamp()
-where id = '93000000-0000-4000-8000-000000000003';
+where id = 'f2c00000-0000-4000-8000-000000000003';
 
 select is(
   private.has_effective_permission('authorization', 'read', 'TEAM'),
@@ -297,7 +297,7 @@ select is(
 
 update public.permission_catalog
 set status = 'active', deprecated_at = null
-where id = '93000000-0000-4000-8000-000000000003';
+where id = 'f2c00000-0000-4000-8000-000000000003';
 
 update public.tenant_memberships
 set status = 'blocked', blocked_at = statement_timestamp()
@@ -328,7 +328,7 @@ set status = 'active', blocked_at = null
 where id = '17000000-0000-4000-8000-000000000001';
 
 select is(
-  private.can_delegate_permission('93000000-0000-4000-8000-000000000005'),
+  private.can_delegate_permission('f2c00000-0000-4000-8000-000000000005'),
   false,
   'tenant_delegable false blocks delegation even when the actor holds the exact permission'
 );
@@ -629,7 +629,7 @@ select throws_ok(
   format(
     'select * from public.set_tenant_profile_permission(%L, %L, true, %s, %L, %L)',
     (select id from w2c_refs where key = 'custom'),
-    '93000000-0000-4000-8000-000000000005',
+    'f2c00000-0000-4000-8000-000000000005',
     (select version from w2c_refs where key = 'custom'),
     'attempt nondelegable grant', '57000000-0000-4000-8000-000000000025'
   ),
