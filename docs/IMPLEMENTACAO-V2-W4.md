@@ -395,3 +395,44 @@ Com `DB_RESET = PASS`, `DB_TESTS = PASS`, `DB_TEST_COUNT = 969/969`,
 `W4B_CONCURRENCY = PASS (10/10)`, `REGRESSION_W1_W4B1 = PASS` e
 `DB_SMOKE = PASS`, o gate `W4B_TEAM_DOMAIN_READY` está concluído. O gate
 `W4B_TEAM_SCOPE_READY` permanece `NO` até a execução explícita da W4B.3.
+
+## W4B.3 — Typed Boundary and Integrated Hardening
+
+Em 2026-09-21 foi materializada a boundary TypeScript de Equipes sobre os
+tipos gerados oficialmente pelo Supabase CLI local após a W4B.2. O arquivo
+`database.types.ts` contém `public.teams`, `public.team_memberships` e as 12
+RPCs aprovadas; ele não foi ajustado manualmente. A adaptação entre a
+nulabilidade real das funções PostgreSQL e a limitação dos metadados gerados
+permanece estreita e local ao gateway.
+
+O boundary runtime cobre `Team`, `TeamMembership`, seus status, os seis inputs
+de command e os seis read models. Schemas Zod strict validam somente formato e
+projeção: UUID, conteúdo textual, versão, paginação, lifecycle projetado e o
+resultado exato `{ id, version, status, command_correlation_id }`. O formato
+legado com `correlation_id` é rejeitado. Lookup continua limitado a `id`,
+`code` e `name`; roster não expõe e-mail, Perfil, permissions ou overrides.
+
+O gateway autenticado expõe exatamente 12 operações: seis commands e seis
+reads, todas por RPC. Inputs e outputs são parseados fail-closed. Erros de
+authorization, conflito de versão/idempotência e estado inválido preservam o
+código de domínio aplicável. O gateway não aceita tenant, ator ou scope como
+authority, não avalia TEAM localmente, não usa `service_role`, não acessa
+tabelas diretamente e não transforma falhas em sucesso ou ausência silenciosa.
+
+Os unitários da W4B.3 cobrem 24 casos focados, incluindo as 12 operações do
+gateway, contratos strict, nulabilidade aprovada, lifecycle projetado,
+paginação, projeção mínima e rejeição de payload de authority. A regressão
+completa passou 195/195; typecheck, lint e build passaram; E2E permaneceu 6/6.
+
+Nenhum SQL, migration, pgTAP ou runner de concorrência foi alterado na W4B.3.
+Por isso, uma nova execução DB não é necessária para este bloco tipado: a
+evidência W4B.2 imediatamente anterior permanece autoritativa em 969/969, com
+reset e smoke aprovados e concorrência 10/10, inclusive mudança de membership
+durante decisão TEAM viva.
+
+A auditoria integrada preservou as 11 permissions, os baselines Manager 10,
+Technician 2, Assistant 2 e Requester 1, sem generic `use` e sem
+`teams.reactivate` nos baselines. AUTH-01, a independência TEAM/ALL_TENANT e a
+ausência de hierarquia de scope permanecem inalteradas. Com os gates de app e
+a evidência DB vigente aprovados, `W4B_TYPED_BOUNDARY_READY = YES` e
+`W4B_TEAM_SCOPE_READY = YES`. `CADASTRO_READY` permanece `NO` até W4D.

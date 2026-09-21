@@ -544,6 +544,157 @@ export type Database = {
           },
         ]
       }
+      team_memberships: {
+        Row: {
+          created_at: string
+          created_by: string
+          ended_at: string | null
+          id: string
+          joined_at: string
+          membership_id: string
+          status: string
+          team_id: string
+          tenant_id: string
+          updated_at: string
+          updated_by: string
+          version: number
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          ended_at?: string | null
+          id?: string
+          joined_at?: string
+          membership_id: string
+          status?: string
+          team_id: string
+          tenant_id: string
+          updated_at?: string
+          updated_by: string
+          version?: number
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          ended_at?: string | null
+          id?: string
+          joined_at?: string
+          membership_id?: string
+          status?: string
+          team_id?: string
+          tenant_id?: string
+          updated_at?: string
+          updated_by?: string
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "team_memberships_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "app_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "team_memberships_membership_fk"
+            columns: ["tenant_id", "membership_id"]
+            isOneToOne: false
+            referencedRelation: "tenant_memberships"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "team_memberships_team_fk"
+            columns: ["tenant_id", "team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "team_memberships_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "app_users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      teams: {
+        Row: {
+          code: string | null
+          created_at: string
+          created_by: string
+          description: string | null
+          id: string
+          inactivated_at: string | null
+          name: string
+          sector_id: string | null
+          status: string
+          tenant_id: string
+          updated_at: string
+          updated_by: string
+          version: number
+        }
+        Insert: {
+          code?: string | null
+          created_at?: string
+          created_by: string
+          description?: string | null
+          id?: string
+          inactivated_at?: string | null
+          name: string
+          sector_id?: string | null
+          status?: string
+          tenant_id: string
+          updated_at?: string
+          updated_by: string
+          version?: number
+        }
+        Update: {
+          code?: string | null
+          created_at?: string
+          created_by?: string
+          description?: string | null
+          id?: string
+          inactivated_at?: string | null
+          name?: string
+          sector_id?: string | null
+          status?: string
+          tenant_id?: string
+          updated_at?: string
+          updated_by?: string
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "teams_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "app_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "teams_sector_fk"
+            columns: ["tenant_id", "sector_id"]
+            isOneToOne: false
+            referencedRelation: "sectors"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "teams_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "teams_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "app_users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       tenant_entitlements: {
         Row: {
           created_at: string
@@ -999,6 +1150,16 @@ export type Database = {
           tenant_ref: string
         }[]
       }
+      add_team_member: {
+        Args: {
+          correlation_id: string
+          idempotency_key: string
+          membership_id: string
+          reason: string
+          team_id: string
+        }
+        Returns: Json
+      }
       assign_tenant_membership_profile: {
         Args: {
           command_reason: string
@@ -1147,6 +1308,18 @@ export type Database = {
         }
         Returns: Json
       }
+      create_team: {
+        Args: {
+          code: string
+          correlation_id: string
+          description: string
+          idempotency_key: string
+          name: string
+          reason: string
+          sector_id: string
+        }
+        Returns: Json
+      }
       create_tenant_invitation: {
         Args: {
           correlation_id?: string
@@ -1200,6 +1373,16 @@ export type Database = {
           deleted_override_id: string
           membership_version: number
         }[]
+      }
+      end_team_member: {
+        Args: {
+          correlation_id: string
+          expected_version: number
+          id: string
+          idempotency_key: string
+          reason: string
+        }
+        Returns: Json
       }
       expire_tenant_invitation: {
         Args: {
@@ -1294,6 +1477,20 @@ export type Database = {
           version: number
         }[]
       }
+      get_team: {
+        Args: { target_id: string }
+        Returns: {
+          code: string
+          created_at: string
+          description: string
+          id: string
+          name: string
+          sector_id: string
+          status: string
+          updated_at: string
+          version: number
+        }[]
+      }
       inactivate_cost_center: {
         Args: {
           correlation_id: string
@@ -1325,6 +1522,16 @@ export type Database = {
         Returns: Json
       }
       inactivate_sector: {
+        Args: {
+          correlation_id: string
+          expected_version: number
+          id: string
+          idempotency_key: string
+          reason: string
+        }
+        Returns: Json
+      }
+      inactivate_team: {
         Args: {
           correlation_id: string
           expected_version: number
@@ -1426,6 +1633,15 @@ export type Database = {
           version: number
         }[]
       }
+      list_my_teams: {
+        Args: never
+        Returns: {
+          code: string
+          id: string
+          name: string
+          sector_id: string
+        }[]
+      }
       list_sectors: {
         Args: {
           result_limit?: number
@@ -1441,6 +1657,62 @@ export type Database = {
           status: string
           updated_at: string
           version: number
+        }[]
+      }
+      list_team_members: {
+        Args: {
+          result_limit?: number
+          result_offset?: number
+          status_filter?: string
+          target_team_id: string
+        }
+        Returns: {
+          display_name: string
+          ended_at: string
+          id: string
+          joined_at: string
+          membership_id: string
+          status: string
+          team_id: string
+          user_id: string
+          version: number
+        }[]
+      }
+      list_teams: {
+        Args: {
+          result_limit?: number
+          result_offset?: number
+          search_text?: string
+          status_filter?: string
+        }
+        Returns: {
+          code: string
+          description: string
+          id: string
+          name: string
+          sector_id: string
+          status: string
+          updated_at: string
+          version: number
+        }[]
+      }
+      list_teams_for_membership: {
+        Args: {
+          result_limit?: number
+          result_offset?: number
+          status_filter?: string
+          target_membership_id: string
+        }
+        Returns: {
+          association_id: string
+          code: string
+          ended_at: string
+          joined_at: string
+          membership_status: string
+          membership_version: number
+          name: string
+          sector_id: string
+          team_id: string
         }[]
       }
       lookup_cost_centers: {
@@ -1468,6 +1740,14 @@ export type Database = {
         }[]
       }
       lookup_sectors: {
+        Args: { result_limit?: number; search_text?: string }
+        Returns: {
+          code: string
+          id: string
+          name: string
+        }[]
+      }
+      lookup_teams: {
         Args: { result_limit?: number; search_text?: string }
         Returns: {
           code: string
@@ -1528,6 +1808,16 @@ export type Database = {
         Returns: Json
       }
       reactivate_sector: {
+        Args: {
+          correlation_id: string
+          expected_version: number
+          id: string
+          idempotency_key: string
+          reason: string
+        }
+        Returns: Json
+      }
+      reactivate_team: {
         Args: {
           correlation_id: string
           expected_version: number
@@ -1687,6 +1977,20 @@ export type Database = {
           idempotency_key: string
           name: string
           reason: string
+        }
+        Returns: Json
+      }
+      update_team: {
+        Args: {
+          code: string
+          correlation_id: string
+          description: string
+          expected_version: number
+          id: string
+          idempotency_key: string
+          name: string
+          reason: string
+          sector_id: string
         }
         Returns: Json
       }
