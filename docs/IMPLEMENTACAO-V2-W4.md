@@ -3,11 +3,13 @@
 ## Estado
 
 - Wave: **W4 — Cadastros estruturais e scope TEAM**.
-- Subwave concluída: **W4A — Structural Catalog Foundation**.
-- Próxima subwave: **W4B — Teams and TEAM Scope**, com plano congelado e
-  implementação ainda não iniciada.
+- Subwaves concluídas: **W4A — Structural Catalog Foundation** e
+  **W4B — Teams and TEAM Scope**.
+- Próxima subwave: **W4C — Maintenance Catalogs**, com plano executivo
+  congelado e implementação ainda não iniciada.
 - Gate W4A: `W4A_STRUCTURAL_CATALOGS_READY = YES`.
-- Gate W4B: `W4B_TEAM_SCOPE_READY = NO`.
+- Gate W4B: `W4B_TEAM_SCOPE_READY = YES`.
+- Gate W4C: `W4C_MAINTENANCE_CATALOGS_READY = NO`.
 - Gate final: `CADASTRO_READY` (permanece `NO` até W4D).
 
 ## W4A — Structural Catalog Foundation
@@ -436,3 +438,339 @@ Technician 2, Assistant 2 e Requester 1, sem generic `use` e sem
 ausência de hierarquia de scope permanecem inalteradas. Com os gates de app e
 a evidência DB vigente aprovados, `W4B_TYPED_BOUNDARY_READY = YES` e
 `W4B_TEAM_SCOPE_READY = YES`. `CADASTRO_READY` permanece `NO` até W4D.
+
+## W4C — plano executivo congelado
+
+Em 2026-09-21 foi congelado o plano executivo da W4C, sem iniciar migration,
+SQL, TypeScript, teste funcional ou UI. As decisões abaixo detalham o recorte
+já aprovado no plano W4: Categorias, Subcategorias, Motivos contextuais, Tipos
+de Documento, esqueleto de Modelos de Checklist e aplicação opcional do
+Template CW. Solicitações, OS, execução/snapshot de checklist, Storage e todos
+os consumidores operacionais permanecem fora desta subwave.
+
+### Modelo de Categoria e Subcategoria
+
+Categoria e Subcategoria são entidades próprias, tenant-owned e específicas
+do domínio Manutenção:
+
+- `public.maintenance_categories` representa a classificação primária;
+- `public.maintenance_subcategories` representa a classificação subordinada e
+  possui FK composta `(tenant_id, category_id)` para Categoria;
+- a profundidade funcional é exatamente dois níveis — Categoria →
+  Subcategoria. Não há `parent_id`, árvore genérica ou sub-subcategoria;
+- ambas possuem UUID interno, `tenant_id`, `code` opcional, `name`,
+  `description`, status `active|inactive`, versão positiva, autoria e
+  timestamps do banco;
+- código de Categoria, quando presente, é único de forma normalizada no
+  tenant; código de Subcategoria, quando presente, é único de forma
+  normalizada dentro da Categoria;
+- nome não é autoridade nem identificador. Listas usam ordenação determinística
+  por nome normalizado e UUID; não há campo de ordenação manual sem requisito;
+- não há hard delete nem cascade de lifecycle. Inativação preserva identidade e
+  histórico.
+
+Categoria ativa pode ser atualizada sem propagar alterações aos filhos.
+Inativar Categoria com Subcategoria ativa ou Modelo de Checklist ativo falha
+com dependência ativa. Inativar Subcategoria não inativa a Categoria nem
+qualquer consumidor futuro. Reativar Subcategoria ou Modelo exige Categoria
+ativa. Referências históricas permanecem legíveis; lookups retornam somente
+ativos.
+
+### Motivos contextuais
+
+`public.maintenance_reasons` é tenant-owned e possui UUID, `tenant_id`,
+`usage_context`, código obrigatório, nome, descrição, status, versão, autoria
+e timestamps. `usage_context` é vocabulário técnico fechado e imutável:
+
+- `CANCEL_REQUEST` — cancelamento futuro de Solicitação;
+- `REJECT_REQUEST` — rejeição futura de Solicitação;
+- `PAUSE_WORK_ORDER` — pausa futura de OS;
+- `CANCEL_WORK_ORDER` — cancelamento futuro de OS;
+- `RETURN_WORK_ORDER` — devolução futura de OS.
+
+A unicidade é `(tenant_id, usage_context, normalized_code)`. O registro é
+editável em código, nome e descrição, pode ser inativado/reativado e nunca muda
+de contexto; correção de contexto exige inativar e criar outro. A W4C entrega
+somente catálogo e validação do contexto. As state machines consumidoras,
+obrigatoriedade de detalhe para “Outro” e referências operacionais pertencem às
+waves de Solicitação/OS. Nenhum contexto conhecido é adiado; permanecem
+adiados apenas seeds de `CANCEL_WORK_ORDER` e `RETURN_WORK_ORDER`, novos
+contextos não aprovados e toda lógica consumidora.
+
+### Tipos de Documento e Modelos de Checklist
+
+O escopo congelado inclui os skeletons seguros já previstos:
+
+- `public.document_types`: vocabulário tenant-owned com código opcional, nome,
+  descrição, lifecycle e versão; não cria arquivo, metadata, bucket ou Storage;
+- `public.checklist_templates`: cabeçalho tenant-owned ligado por FK composta a
+  uma Categoria ativa, com código opcional, nome, descrição, lifecycle e
+  versão;
+- `public.checklist_template_items`: definição pertencente ao template, com
+  posição positiva única, prompt, tipo de resposta fechado, obrigatoriedade e
+  instruções opcionais. Não possui lifecycle independente nem boundary de
+  autorização própria;
+- a criação e a atualização da definição do Modelo persistem cabeçalho e itens
+  atomicamente. Os tipos permitidos são `DONE_NOT_DONE`,
+  `CONFORMING_NONCONFORMING`, `YES_NO`, `TEXT`, `NUMBER` e `OBSERVATION`;
+- execução, respostas, evidências, associação a Ativo/Plano/OS e snapshot
+  permanecem adiados.
+
+### Template CW v1
+
+O Template CW é implementado na W4C como opção explícita, nunca como seed
+automático. `private.catalog_templates`,
+`private.catalog_template_entries` e
+`private.catalog_template_applications` guardam versão, entradas allowlisted e
+ledger técnico. Não possuem acesso direto de cliente e nenhuma tabela
+tenant-owned mantém FK ou dependência runtime com o template.
+
+`apply_cw_catalog_template` aceita apenas chave/versão allowlisted, deriva
+tenant e ator do contexto, exige `catalog_templates.apply.all_tenant`, usa o
+mesmo lock tenant/catálogos das mutations manuais e exige Categorias,
+Subcategorias e Motivos integralmente vazios. A aplicação cria cópias
+tenant-owned em uma transação, registra History/Event por registro, Audit da
+aplicação, idempotência e ledger único `(tenant_id, template_key)`. Não há
+merge por label/código, aplicação parcial, reaplicação de versão futura ou
+auto-sync. “Começar vazio” não grava estado artificial.
+
+O Template CW v1 copia exatamente:
+
+| Categoria | Subcategorias |
+| --- | --- |
+| Elétrica | Iluminação; Tomadas; Quadros elétricos; Circuitos; Iluminação de emergência |
+| Hidráulica | Abastecimento; Vazamentos; Esgoto; Bombas; Reservatórios |
+| Civil | Alvenaria; Pintura; Revestimentos; Impermeabilização; Cobertura |
+| Climatização | Ar-condicionado; VRF; Ventilação; Exaustão |
+| Segurança contra incêndio | Extintores; Hidrantes; Alarme; Iluminação de emergência |
+| Elevadores | Elevadores; Plataformas; Transporte vertical |
+| Portas e acessos | Portas; Fechaduras; Portões; Controle de acesso |
+| CFTV e segurança eletrônica | Câmeras; Gravadores; Sensores |
+| Jardinagem e áreas externas | Paisagismo; Irrigação; Áreas externas |
+| Limpeza e conservação | Limpeza técnica; Conservação |
+| Outros | classificação genérica residual |
+
+Os motivos copiados são:
+
+| Contexto | Motivos |
+| --- | --- |
+| `CANCEL_REQUEST` | Duplicidade; Solicitação indevida; Serviço não necessário; Impossibilidade de execução; Substituído por outra demanda; Outro |
+| `REJECT_REQUEST` | Fora do escopo; Informação insuficiente; Solicitação improcedente; Duplicidade; Outro |
+| `PAUSE_WORK_ORDER` | Aguardando material; Aguardando fornecedor; Aguardando acesso/liberação; Aguardando aprovação; Impedimento técnico; Outro |
+| `CANCEL_WORK_ORDER` | nenhum seed aprovado |
+| `RETURN_WORK_ORDER` | nenhum seed aprovado |
+
+As entradas globais usam chaves ASCII e códigos determinísticos separados das
+labels editáveis. Tipos de Documento e Modelos de Checklist começam vazios.
+
+### Authorization e rollout
+
+AUTH-01 permanece exato, sem wildcard, hierarchy, `manage`, `use`, OWN,
+ASSIGNED ou TEAM. Todos os Resources W4C usam exclusivamente `ALL_TENANT` e o
+entitlement `maintenance`; nenhum deles possui associação autoritativa com
+Equipe. A policy pós-W4A para referências é normativa: a permission do Resource
+mutado autoriza a mutation; Categoria e demais referências são relidas e
+validadas server-side. `lookup` serve somente discovery e não é authority nem
+pré-requisito da mutation.
+
+O catálogo W4C contém exatamente 31 combinações:
+
+| Module/Resource | Actions `ALL_TENANT` | Total |
+| --- | --- | ---: |
+| `maintenance.maintenance_categories` | read, lookup, create, update, inactivate, reactivate | 6 |
+| `maintenance.maintenance_subcategories` | read, lookup, create, update, inactivate, reactivate | 6 |
+| `maintenance.maintenance_reasons` | read, lookup, create, update, inactivate, reactivate | 6 |
+| `maintenance.document_types` | read, lookup, create, update, inactivate, reactivate | 6 |
+| `maintenance.checklist_templates` | read, lookup, create, update, inactivate, reactivate | 6 |
+| `maintenance.catalog_templates` | apply | 1 |
+
+Os baselines exatos são:
+
+| Template | Grants W4C | Total |
+| --- | --- | ---: |
+| `manager` | read/lookup/create/update/inactivate de Categorias, Subcategorias e Motivos; read/lookup de Tipos de Documento e Modelos de Checklist; apply de Template CW | 20 |
+| `technician` | lookup de Categorias, Subcategorias, Motivos, Tipos de Documento e Modelos de Checklist | 5 |
+| `assistant` | lookup de Categorias, Subcategorias, Motivos, Tipos de Documento e Modelos de Checklist | 5 |
+| `requester` | lookup de Categorias e Subcategorias | 2 |
+
+`reactivate` permanece granular no catálogo e fora dos quatro baselines.
+Mutations de Tipo de Documento/Modelo de Checklist também ficam fora dos
+baselines; Custom Profiles podem recebê-las somente por delegação W2 válida.
+Manager contém todas as combinações exatas delegadas aos demais templates, sem
+exceção à antiescalada.
+
+O rollout parte dos System Profile Templates v3 entregues pela W4B e publica
+v4 com `rollout_key = 'w4c_maintenance_catalogs_v1'`. Ele reutiliza
+`private.authorization_profile_rollouts`, é add-only, determinístico,
+transacional e idempotente, seleciona apenas UUID/template_key oficiais,
+preserva grants existentes e exact overrides, exclui Custom Profiles e
+registra Audit técnico sem duplicação em replay. Não existe auto-sync.
+
+### Commands planejados
+
+São 21 RPCs mutáveis explícitas:
+
+1. `create_maintenance_category`;
+2. `update_maintenance_category`;
+3. `inactivate_maintenance_category`;
+4. `reactivate_maintenance_category`;
+5. `create_maintenance_subcategory`;
+6. `update_maintenance_subcategory`;
+7. `inactivate_maintenance_subcategory`;
+8. `reactivate_maintenance_subcategory`;
+9. `create_maintenance_reason`;
+10. `update_maintenance_reason`;
+11. `inactivate_maintenance_reason`;
+12. `reactivate_maintenance_reason`;
+13. `create_document_type`;
+14. `update_document_type`;
+15. `inactivate_document_type`;
+16. `reactivate_document_type`;
+17. `create_checklist_template`;
+18. `update_checklist_template_definition`;
+19. `inactivate_checklist_template`;
+20. `reactivate_checklist_template`;
+21. `apply_cw_catalog_template`.
+
+Create recebe campos funcionais, reason, correlation ID e idempotency key.
+Update recebe ID, expected version, campos funcionais completos allowlisted,
+reason, correlation e idempotency. Inactivate/reactivate recebem ID, expected
+version e o mesmo contexto de command. Motivo recebe `usage_context` apenas no
+create; update/status nunca o altera. Subcategoria relê e bloqueia Categoria.
+Modelo relê Categoria e persiste toda a definição ordenada atomicamente sob a
+permission `checklist_templates.update`.
+
+Todos os commands seguem AUTH-02: lock autoritativo W2 do ator/tenant,
+aquisição idempotente W3, lock compartilhado tenant/catálogos quando o Template
+ou seus alvos participarem, pai antes do filho, alvo por UUID, releitura final,
+permission exata, tenant/entitlement/estado/versão/domínio, mutation e
+Audit/History/Outbox antes do commit. Tenant, ator, status, scope, grants e
+autoria não entram no payload.
+
+Os 20 commands de entidade retornam estritamente
+`{ id, version, status, command_correlation_id }`. O resultado especializado
+de aplicação preserva esses quatro campos — `id` identifica o ledger,
+`version` é a versão efetiva e `status = applied` — e acrescenta somente
+`template_key`, IDs e contagens allowlisted exigidos pelo contrato congelado.
+`correlation_id` legado nunca substitui `command_correlation_id`.
+
+### Read models planejados
+
+São 16 RPCs de leitura:
+
+- Categorias: `list_maintenance_categories`, `get_maintenance_category`,
+  `lookup_maintenance_categories`;
+- Subcategorias: `list_maintenance_subcategories`,
+  `get_maintenance_subcategory`, `lookup_maintenance_subcategories`;
+- Motivos: `list_maintenance_reasons`, `get_maintenance_reason`,
+  `lookup_maintenance_reasons`;
+- Tipos de Documento: `list_document_types`, `get_document_type`,
+  `lookup_document_types`;
+- Modelos de Checklist: `list_checklist_templates`,
+  `get_checklist_template`, `lookup_checklist_templates`;
+- Template CW: `get_cw_catalog_template_preview`.
+
+Listagens administrativas filtram somente por texto, status e, conforme o
+Resource, `category_id` ou `usage_context`, com limite/offset seguro,
+ordenação normalizada e UUID como desempate. Detalhes usam UUID e
+anti-enumeration. O detalhe de Modelo inclui os itens em posição ordenada; não
+há RPC pública separada de item. Lookups retornam somente ativos e projeção
+mínima `id`, `code`, `name`; Subcategoria aceita Categoria como filtro
+tenant-safe, Motivo exige contexto quando usado por selector e Modelo pode
+incluir `category_id` apenas para distinção/filtragem necessária. O preview do
+Template exige capability `catalog_templates.apply`, retorna somente chave,
+versão, conteúdo allowlisted e contagens, e não escreve ledger.
+
+### RLS, lifecycle e efeitos
+
+Todas as seis tabelas públicas nascem com ENABLE/FORCE RLS. SELECT
+administrativo exige `read.all_tenant`; lookup e preview passam por RPCs de
+projeção própria. `checklist_template_items` não recebe SELECT direto de
+cliente: seus campos aparecem somente no detalhe autorizado do Modelo. INSERT,
+UPDATE e DELETE diretos são negados; mutations ocorrem apenas por RPC.
+`PUBLIC`, `anon`, `service_role` e `cw_worker` não recebem atalhos. Helpers e
+tabelas privadas têm owner técnico, `search_path = ''`, nomes qualificados e
+grants mínimos. Tenant e ator são derivados de `auth.uid()` e fatos atuais.
+
+Guards exatos:
+
+- Categoria não inativa com Subcategoria ou Modelo ativo;
+- Subcategoria e Modelo não reativam sob Categoria inativa;
+- Motivo não muda `usage_context`;
+- Modelo inativo preserva integralmente seus itens;
+- inativos saem de lookup, mas continuam legíveis por read autorizado;
+- nenhuma transição produz cascade ou DELETE físico;
+- Tipo de Documento não cria nem referencia Storage;
+- referências futuras relerão tenant, contexto e status dentro do command
+  consumidor.
+
+Create/update/inactivate/reactivate emitem respectivamente eventos v1
+`maintenance.category.*`, `maintenance.subcategory.*`,
+`maintenance.reason.*`, `cadastros.document_type.*` e
+`maintenance.checklist_template.*`. A aplicação emite
+`cadastros.catalog_template.applied`, além dos eventos de criação das cópias.
+Mutation, Audit, History, Outbox e idempotência são atômicos; payloads são
+mínimos e não carregam descrição, instruções completas, authority ou PII.
+
+### Concorrência e testes
+
+O runner multi-session W4C provará 12 classes:
+
+1. create concorrente com mesmo código e mesma key;
+2. create com keys distintas contra a mesma unicidade de negócio;
+3. dois updates com a mesma versão;
+4. inactivate versus update do mesmo registro;
+5. inactivate Categoria versus create Subcategoria;
+6. inactivate Categoria versus reactivate Subcategoria;
+7. inactivate Categoria versus create/reactivate Modelo;
+8. update de definição do Modelo versus inactivate Categoria;
+9. duas aplicações do Template com a mesma key;
+10. duas aplicações com keys distintas;
+11. aplicação do Template versus criação manual nos catálogos-alvo;
+12. colisão concorrente de Subcategoria na Categoria e de Motivo no contexto.
+
+Constraints tenant-aware, locks pai-antes-do-filho, lock comum de
+tenant/catálogos, expected version e idempotência W3 definem o resultado. Não
+há check-then-insert no cliente.
+
+O pgTAP cobrirá schema, FKs, uniques/checks, lifecycle, grants, RLS,
+anti-enumeration, tenant isolation, exact permissions/baselines/rollout,
+Custom Profiles/overrides, cada command/read, idempotência, atomicidade,
+eventos, Template opcional/vazio/replay/rollback/sem auto-sync, contexto de
+Motivo e ausência de Storage/W5+. Unitários cobrirão schemas Zod strict,
+normalização/fingerprint, tipos de resposta, projeções, query keys e gateway.
+Gateway tests cobrirão 21 commands e 16 reads por RPC, argumentos, parse
+fail-closed e erros. Typecheck, lint, build e E2E existente continuam gates;
+W4C não cria UI/E2E novo. Reset local, todos os pgTAP W1–W4B, runners
+anteriores, runner W4C e smoke integram a regressão final.
+
+### Typed boundary e subdivisão executiva
+
+Após as migrations e validação DB, `npm run db:types` será executado somente
+contra Supabase LOCAL. `database.types.ts` nunca será editado manualmente. Os
+arquivos previstos são `src/shared/maintenance/maintenance-catalogs.ts` e
+testes, além de
+`src/infrastructure/supabase/maintenance-catalog-gateway.ts` e testes. Eles
+conterão status/tipos/contextos, inputs dos 21 commands, resultados strict,
+projeções dos 16 reads, items de checklist, query keys tenant-aware e gateway
+autenticado sem authority local ou acesso direto a tabelas.
+
+A implementação será dividida em quatro blocos internos:
+
+1. **W4C.1 — Authorization Contract and Rollout**: 31 permissions, baselines
+   20/5/5/2, templates v3→v4 e rollout. Gate
+   `W4C_AUTHORIZATION_CATALOG_READY`;
+2. **W4C.2 — Maintenance Taxonomy and Template CW**: Categorias,
+   Subcategorias, Motivos, Template v1, commands/reads, RLS, efeitos, pgTAP e
+   concorrência aplicável. Gate `W4C_MAINTENANCE_TAXONOMY_READY`;
+3. **W4C.3 — Supporting Catalog Skeletons**: Tipos de Documento e Modelos de
+   Checklist/itens, boundaries DB e testes, sem Storage ou execução. Gate
+   `W4C_SUPPORTING_CATALOGS_READY`;
+4. **W4C.4 — Typed Boundary and Integrated Hardening**: tipos gerados,
+   boundary/gateway, unitários e regressão W1–W4C.3. Gate oficial
+   `W4C_MAINTENANCE_CATALOGS_READY`.
+
+Cada bloco possui migration/testes/documentação próprios quando houver banco e
+um commit isolado após seu gate. Migrations anteriores não são editadas. O
+congelamento deste plano não inicia W4C.1, W4D ou qualquer domínio operacional.
+`CADASTRO_READY` permanece `NO` até W4D.
