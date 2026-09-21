@@ -239,7 +239,7 @@ reset role;
 
 select is((select count(*) from public.locations where tenant_id=(select tenant_id from w4a_tenant_b)),0::bigint,'tenant B cannot observe tenant A catalog rows');
 select throws_ok(format('delete from public.sectors where id=%L::uuid',(select result->>'id' from w4a_results where kind='sector')),'42501','STRUCTURAL_CATALOG_DELETE_FORBIDDEN','catalog rows cannot be physically deleted even by the migration owner');
-select ok(not exists(select 1 from pg_catalog.pg_class c join pg_catalog.pg_namespace n on n.oid=c.relnamespace where n.nspname='public' and c.relname in ('teams','team_memberships','categories','subcategories','reasons')),'W4A does not anticipate W4B or W4C tables');
+select ok(not exists(select 1 from pg_catalog.pg_class c join pg_catalog.pg_namespace n on n.oid=c.relnamespace where n.nspname='public' and c.relname in ('categories','subcategories','reasons')),'W4A does not anticipate W4C tables');
 
 select * from finish();
 rollback;

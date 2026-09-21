@@ -39,7 +39,11 @@ where (
        'assign_tenant_membership_profile', 'set_tenant_permission_override',
        'delete_tenant_permission_override', 'change_tenant_membership_status',
        'invite_tenant_user', 'revoke_tenant_invitation_authenticated',
-       'expire_tenant_invitation_authenticated', 'resolve_my_authorization'
+       'expire_tenant_invitation_authenticated', 'resolve_my_authorization',
+       'create_team', 'update_team', 'inactivate_team', 'reactivate_team',
+       'add_team_member', 'end_team_member', 'list_teams', 'get_team',
+       'lookup_teams', 'list_my_teams', 'list_team_members',
+       'list_teams_for_membership'
      )
      and not (procedure.proname = 'create_tenant_profile' and procedure.pronargs = 4)
    );
@@ -105,7 +109,30 @@ values
   ('W4A', 'private', 'can_access_w4a_catalog', true),
   ('W4A', 'private', 'assert_w4a_catalog_access', true),
   ('W4A', 'private', 'execute_w4a_catalog_command', true),
-  ('W4B.1', 'private', 'apply_w4b_authorization_rollout', true);
+  ('W4B.1', 'private', 'apply_w4b_authorization_rollout', true),
+  ('W4B.2', 'private', 'protect_team_mutation', false),
+  ('W4B.2', 'private', 'enforce_team_integrity', false),
+  ('W4B.2', 'private', 'protect_team_membership_mutation', false),
+  ('W4B.2', 'private', 'enforce_team_membership_integrity', false),
+  ('W4B.2', 'private', 'bump_tenant_membership_revision_for_team', false),
+  ('W4B.2', 'private', 'protect_sector_team_dependency', false),
+  ('W4B.2', 'private', 'team_reaches', true),
+  ('W4B.2', 'private', 'can_access_team', true),
+  ('W4B.2', 'private', 'assert_w4b_all_tenant_access', true),
+  ('W4B.2', 'private', 'execute_team_command', true),
+  ('W4B.2', 'private', 'execute_team_membership_command', true),
+  ('W4B.2', 'public', 'create_team', true),
+  ('W4B.2', 'public', 'update_team', true),
+  ('W4B.2', 'public', 'inactivate_team', true),
+  ('W4B.2', 'public', 'reactivate_team', true),
+  ('W4B.2', 'public', 'add_team_member', true),
+  ('W4B.2', 'public', 'end_team_member', true),
+  ('W4B.2', 'public', 'list_teams', true),
+  ('W4B.2', 'public', 'get_team', true),
+  ('W4B.2', 'public', 'lookup_teams', true),
+  ('W4B.2', 'public', 'list_my_teams', true),
+  ('W4B.2', 'public', 'list_team_members', true),
+  ('W4B.2', 'public', 'list_teams_for_membership', true);
 
 create temporary table w2e_expected_public_security_definers (
   routine regprocedure primary key
@@ -167,7 +194,19 @@ values
   ('public.list_cost_center_children(uuid)'::regprocedure),
   ('public.list_sectors(text,text,integer,integer)'::regprocedure),
   ('public.get_sector(uuid)'::regprocedure),
-  ('public.lookup_sectors(text,integer)'::regprocedure);
+  ('public.lookup_sectors(text,integer)'::regprocedure),
+  ('public.create_team(uuid,text,text,text,text,uuid,text)'::regprocedure),
+  ('public.update_team(uuid,bigint,uuid,text,text,text,text,uuid,text)'::regprocedure),
+  ('public.inactivate_team(uuid,bigint,text,uuid,text)'::regprocedure),
+  ('public.reactivate_team(uuid,bigint,text,uuid,text)'::regprocedure),
+  ('public.add_team_member(uuid,uuid,text,uuid,text)'::regprocedure),
+  ('public.end_team_member(uuid,bigint,text,uuid,text)'::regprocedure),
+  ('public.list_teams(text,text,integer,integer)'::regprocedure),
+  ('public.get_team(uuid)'::regprocedure),
+  ('public.lookup_teams(text,integer)'::regprocedure),
+  ('public.list_my_teams()'::regprocedure),
+  ('public.list_team_members(uuid,text,integer,integer)'::regprocedure),
+  ('public.list_teams_for_membership(uuid,text,integer,integer)'::regprocedure);
 
 -- Integrated RLS, grants, function and default-privilege inventory.
 select is(
@@ -287,7 +326,7 @@ select is(
     ) as unexpected
   ),
   0::bigint,
-  'the authorization inventory contains no routine or security mode outside the explicit W0-W2, W4A and W4B.1 allowlist'
+  'the authorization inventory contains no routine or security mode outside the explicit W0-W2, W4A and W4B allowlist'
 );
 select is(
   (
@@ -299,7 +338,7 @@ select is(
     ) as missing
   ),
   0::bigint,
-  'every explicitly allowlisted W0-W2, W4A and W4B.1 routine remains present with its approved security mode'
+  'every explicitly allowlisted W0-W2, W4A and W4B routine remains present with its approved security mode'
 );
 select is(
   (
@@ -326,6 +365,17 @@ select is(
 select is(
   (
     select count(*)
+    from w2e_authorization_functions as actual
+    join w2e_expected_authorization_functions as expected
+      using (schema_name, proname, prosecdef)
+    where expected.source_wave = 'W4B.2'
+  ),
+  23::bigint,
+  'all W4B.2 helpers and public boundaries have individually approved security modes'
+);
+select is(
+  (
+    select count(*)
     from (
       select procedure.oid::regprocedure
       from pg_catalog.pg_proc as procedure
@@ -346,12 +396,18 @@ select is(
       and routine_name in (
         'apply_w4a_authorization_rollout', 'protect_w4a_catalog_mutation',
         'can_access_w4a_catalog', 'assert_w4a_catalog_access',
-        'execute_w4a_catalog_command', 'apply_w4b_authorization_rollout'
+        'execute_w4a_catalog_command', 'apply_w4b_authorization_rollout',
+        'protect_team_mutation', 'enforce_team_integrity',
+        'protect_team_membership_mutation', 'enforce_team_membership_integrity',
+        'bump_tenant_membership_revision_for_team',
+        'protect_sector_team_dependency', 'team_reaches', 'can_access_team',
+        'assert_w4b_all_tenant_access', 'execute_team_command',
+        'execute_team_membership_command'
       )
       and grantee in ('PUBLIC', 'anon', 'authenticated', 'service_role', 'cw_worker')
   ),
   0::bigint,
-  'W4A and W4B.1 private helpers expose no execution grant to client or technical API roles'
+  'W4A and W4B private helpers expose no execution grant to client or technical API roles'
 );
 select is(
   (

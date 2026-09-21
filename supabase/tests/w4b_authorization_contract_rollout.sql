@@ -247,8 +247,8 @@ select is(
       and relation.relkind in ('r','p')
       and relation.relname in ('teams','team_memberships')
   ),
-  0::bigint,
-  'W4B.1 does not anticipate the W4B.2 domain tables'
+  2::bigint,
+  'the later W4B.2 phase adds exactly the two planned domain tables'
 );
 select is(
   (
@@ -262,8 +262,8 @@ select is(
         'resolve_membership_permission_ids'
       )
   ),
-  0::bigint,
-  'W4B.1 adds no public Teams command, read model or scope helper'
+  12::bigint,
+  'the later W4B.2 phase adds exactly the six commands and six read models'
 );
 
 insert into auth.users (id, aud, role, email, email_confirmed_at, created_at, updated_at)

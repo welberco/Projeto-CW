@@ -283,3 +283,115 @@ O primeiro gate DB integrado expôs o blocker de delegação acima: 877 de 884
 assertions passaram e sete assertions encadeadas do W2C falharam. Essa execução
 é preservada como evidência que motivou a ratificação; os resultados finais
 após a correção explícita do baseline estão registrados acima.
+
+## W4B.2 — Team Domain and Scope Enforcement
+
+Em 2026-09-17 a migration forward-only
+`20260917001000_w4b_team_domain_scope.sql` materializou somente o domínio de
+Equipes e tornou operacional o primeiro alcance `TEAM`. A migration W4B.1 e as
+migrations anteriores permanecem imutáveis. Contratos TypeScript, gateway e UI
+continuam reservados para W4B.3/W4D.
+
+### Modelo físico e lifecycle
+
+`public.teams` é tenant-owned, versionada, inativável e possui referência
+opcional tenant-safe para `public.sectors`. Código, quando informado, é único
+por tenant sem distinção de caixa. FKs compostas, checks de conteúdo/lifecycle
+e índices tenant/status/name e tenant/sector/status fecham inconsistências e
+mantêm consultas determinísticas.
+
+`public.team_memberships` registra períodos de participação `active|ended` com
+FKs compostas para Team e tenant membership. Um índice único parcial admite no
+máximo um período ativo por tenant/Team/membership, sem impedir múltiplas Teams
+simultâneas. Um período encerrado é imutável; retorno à mesma Team insere nova
+linha. As duas tabelas proíbem hard delete e não possuem cascade.
+
+Equipe com participação ativa não pode ser inativada. Setor com Equipe ativa
+também não pode ser inativado; a proteção foi adicionada por trigger novo sobre
+`sectors`, sem alterar W4A. Team ativa sempre exige Setor ativo quando houver
+referência. Não existe encerramento, inativação ou movimentação implícita.
+
+### Alcance TEAM e boundaries
+
+`private.team_reaches(team_id)` deriva o ator exclusivamente de `auth.uid()` e
+revalida `app_user`, tenant membership, tenant, Team e período de participação
+ativos no banco. `private.can_access_team(team_id, action)` compõe esse fato de
+domínio com `private.has_effective_permission` para a combinação exata
+`teams.{read|lookup}.TEAM`; a capability independente `ALL_TENANT` é avaliada
+como alternativa, sem hierarquia ou conversão entre scopes. Setor não participa
+da decisão de alcance.
+
+Os seis commands públicos são `create_team`, `update_team`,
+`inactivate_team`, `reactivate_team`, `add_team_member` e `end_team_member`.
+Todos derivam tenant/ator do contexto atual, exigem reason e idempotency key,
+usam optimistic version quando há estado preexistente e retornam somente
+`{ id, version, status, command_correlation_id }`. Nenhuma assinatura aceita
+tenant, ator, Perfil, permission ou scope como autoridade.
+
+Os seis read models são `list_teams`, `get_team`, `lookup_teams`,
+`list_my_teams`, `list_team_members` e `list_teams_for_membership`. List/detail
+compõem a união de capabilities exatas TEAM e ALL_TENANT; lookup retorna apenas
+Teams ativas e `id, code, name`; my-teams é self-only sob lookup TEAM. Roster e
+projeção por membership exigem exclusivamente
+`team_memberships.read.all_tenant` e não expõem e-mail, grants ou overrides.
+
+### RLS, locks e revisão de autorização
+
+As duas tabelas usam ENABLE/FORCE RLS. `teams` concede ao papel authenticated
+somente SELECT protegido pela policy de read; mutations são RPC-only.
+`team_memberships` não concede acesso direto nem possui policy de cliente:
+roster e mutations passam apenas pelas boundaries explícitas. Helpers privados
+têm owner `postgres`, search path vazio e nenhum EXECUTE para PUBLIC, anon,
+authenticated, service role ou worker.
+
+Commands começam pelo lock autoritativo W2 do ator/tenant e pela identidade
+idempotente W3. Depois estabilizam Setor, Team, tenant membership alvo e período
+na ordem física aplicável, fazem uma reavaliação final do ator autorizado e só
+então validam/mutam. O advisory lock tenant já estabelecido por W2 serializa
+commands do mesmo tenant; optimistic versions e constraints permanecem como
+defesas independentes.
+
+Add/end atualizam na mesma transação a `version` da tenant membership alvo por
+meio do mecanismo normal de versão W2. Assim projeções de autorização ficam
+obsoletas por fato persistido, sem depender de JWT ou cache cliente.
+
+### Efeitos, concorrência e validação
+
+Cada command escreve atomicamente Audit, History e Outbox v1. Teams emitem
+`cadastros.team.{created,updated,inactivated,reactivated}`; períodos emitem
+`cadastros.team_membership.{added,ended}`. Payloads contêm apenas IDs
+funcionais, versão, status, código e Setor quando aplicável, sem e-mail ou dump
+de autorização. Replay idempotente não duplica domínio nem efeitos.
+
+O pgTAP W4B.2 cobre schema, grants, RLS, boundaries, tenant isolation, alcance
+TEAM positivo/negativo, independência read/lookup/roster, lifecycle, revisão de
+autorização, replay e efeitos. O runner local multi-session cobre dez classes:
+adds com mesma key e keys distintas, add/end, add/inactivate, optimistic update,
+double end, mudança de alcance corrente, replay, unicidade dos efeitos e
+unicidade do período ativo.
+
+O gate W4B.2 somente pode ser marcado pronto após a execução efetiva de reset,
+pgTAP, runner e regressões locais. `W4B_TEAM_SCOPE_READY` e `CADASTRO_READY`
+permanecem `NO` até W4B.3 e W4D, respectivamente.
+
+### Resultado final do gate W4B.2
+
+Em validação local externa ao sandbox, `db:reset` aplicou integralmente as
+migrations W0–W4B.2. O gate DB passou os lints dos schemas `public` e `private`,
+18 arquivos pgTAP e 969/969 assertions, incluindo a regressão W1–W4B.1. O
+smoke integrado também passou com os runners anteriores e o runner W4B.2
+aprovou 10/10 casos de concorrência.
+
+A estabilização revelou somente duas falhas de teste: a boundary histórica
+W4A ainda proibia as duas tabelas oficialmente introduzidas pela W4B.2, e duas
+fixtures W4B tentavam obter `membership_id` do retorno de
+`bootstrap_initial_tenant`, cujo contrato contém apenas `tenant_id` e
+`tenant_ref`. A boundary continuou protegendo a antecipação W4C e as fixtures
+passaram a resolver `public.tenant_memberships.id` pela fonte autoritativa. As
+correções não alteraram a migration W4B.2, o engine de autorização nem a
+semântica TEAM.
+
+Com `DB_RESET = PASS`, `DB_TESTS = PASS`, `DB_TEST_COUNT = 969/969`,
+`W4B_CONCURRENCY = PASS (10/10)`, `REGRESSION_W1_W4B1 = PASS` e
+`DB_SMOKE = PASS`, o gate `W4B_TEAM_DOMAIN_READY` está concluído. O gate
+`W4B_TEAM_SCOPE_READY` permanece `NO` até a execução explícita da W4B.3.
