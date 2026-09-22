@@ -67,7 +67,39 @@ values
   ('technician', 'shared.teams.lookup.team', 'W4B.1'),
   ('assistant', 'shared.teams.read.team', 'W4B.1'),
   ('assistant', 'shared.teams.lookup.team', 'W4B.1'),
-  ('requester', 'shared.teams.lookup.team', 'W4B.1');
+  ('requester', 'shared.teams.lookup.team', 'W4B.1'),
+  ('manager', 'maintenance.maintenance_categories.read.all_tenant', 'W4C.1'),
+  ('manager', 'maintenance.maintenance_categories.lookup.all_tenant', 'W4C.1'),
+  ('manager', 'maintenance.maintenance_categories.create.all_tenant', 'W4C.1'),
+  ('manager', 'maintenance.maintenance_categories.update.all_tenant', 'W4C.1'),
+  ('manager', 'maintenance.maintenance_categories.inactivate.all_tenant', 'W4C.1'),
+  ('manager', 'maintenance.maintenance_subcategories.read.all_tenant', 'W4C.1'),
+  ('manager', 'maintenance.maintenance_subcategories.lookup.all_tenant', 'W4C.1'),
+  ('manager', 'maintenance.maintenance_subcategories.create.all_tenant', 'W4C.1'),
+  ('manager', 'maintenance.maintenance_subcategories.update.all_tenant', 'W4C.1'),
+  ('manager', 'maintenance.maintenance_subcategories.inactivate.all_tenant', 'W4C.1'),
+  ('manager', 'maintenance.maintenance_reasons.read.all_tenant', 'W4C.1'),
+  ('manager', 'maintenance.maintenance_reasons.lookup.all_tenant', 'W4C.1'),
+  ('manager', 'maintenance.maintenance_reasons.create.all_tenant', 'W4C.1'),
+  ('manager', 'maintenance.maintenance_reasons.update.all_tenant', 'W4C.1'),
+  ('manager', 'maintenance.maintenance_reasons.inactivate.all_tenant', 'W4C.1'),
+  ('manager', 'maintenance.document_types.read.all_tenant', 'W4C.1'),
+  ('manager', 'maintenance.document_types.lookup.all_tenant', 'W4C.1'),
+  ('manager', 'maintenance.checklist_templates.read.all_tenant', 'W4C.1'),
+  ('manager', 'maintenance.checklist_templates.lookup.all_tenant', 'W4C.1'),
+  ('manager', 'maintenance.catalog_templates.apply.all_tenant', 'W4C.1'),
+  ('technician', 'maintenance.maintenance_categories.lookup.all_tenant', 'W4C.1'),
+  ('technician', 'maintenance.maintenance_subcategories.lookup.all_tenant', 'W4C.1'),
+  ('technician', 'maintenance.maintenance_reasons.lookup.all_tenant', 'W4C.1'),
+  ('technician', 'maintenance.document_types.lookup.all_tenant', 'W4C.1'),
+  ('technician', 'maintenance.checklist_templates.lookup.all_tenant', 'W4C.1'),
+  ('assistant', 'maintenance.maintenance_categories.lookup.all_tenant', 'W4C.1'),
+  ('assistant', 'maintenance.maintenance_subcategories.lookup.all_tenant', 'W4C.1'),
+  ('assistant', 'maintenance.maintenance_reasons.lookup.all_tenant', 'W4C.1'),
+  ('assistant', 'maintenance.document_types.lookup.all_tenant', 'W4C.1'),
+  ('assistant', 'maintenance.checklist_templates.lookup.all_tenant', 'W4C.1'),
+  ('requester', 'maintenance.maintenance_categories.lookup.all_tenant', 'W4C.1'),
+  ('requester', 'maintenance.maintenance_subcategories.lookup.all_tenant', 'W4C.1');
 
 select is(
   (
@@ -313,7 +345,7 @@ select is(
     ) as unexpected
   ),
   0::bigint,
-  'official profiles receive no permission outside the explicit W2, W4A and W4B.1 allowlists'
+  'official profiles receive no permission outside the explicit W2, W4A, W4B.1 and W4C.1 allowlists'
 );
 select is(
   (
@@ -329,7 +361,7 @@ select is(
     ) as missing
   ),
   0::bigint,
-  'official profiles receive every permission explicitly approved by W2, W4A and W4B.1'
+  'official profiles receive every permission explicitly approved by W2, W4A, W4B.1 and W4C.1'
 );
 select is(
   private.apply_w4a_authorization_rollout((select tenant_id from w2b_bootstrap)),
@@ -533,7 +565,7 @@ select is(
     where profile_id = '96000000-0000-4000-8000-000000000010'
   ),
   0::bigint,
-  'custom profiles receive no silent W2, W4A or W4B.1 baseline grant'
+  'custom profiles receive no silent W2, W4A, W4B.1 or W4C.1 baseline grant'
 );
 
 select throws_ok(

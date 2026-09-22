@@ -774,3 +774,55 @@ Cada bloco possui migration/testes/documentação próprios quando houver banco 
 um commit isolado após seu gate. Migrations anteriores não são editadas. O
 congelamento deste plano não inicia W4C.1, W4D ou qualquer domínio operacional.
 `CADASTRO_READY` permanece `NO` até W4D.
+
+## W4C.1 — Authorization Contract and Rollout
+
+Em 2026-09-21 foi implementado o contrato de autorização da W4C.1, sem
+antecipar domínio, commands, read models, boundary TypeScript ou UI. A migration
+`20260918000000_w4c_authorization_contract_rollout.sql` publica exatamente as
+31 permissions congeladas no módulo `maintenance`, todas com entitlement
+`maintenance`, delegáveis e restritas ao scope exato `ALL_TENANT`. Não foram
+criados scopes TEAM, OWN ou ASSIGNED, ações genéricas `use`/`manage`, wildcard
+ou permission adicional para preview. As cinco permissions `reactivate`
+existem no catálogo e permanecem fora dos baselines oficiais.
+
+Os System Profile Templates oficiais avançam de v3 para v4 com baselines W4C
+exatos de 20 grants para Manager, 5 para Technician, 5 para Assistant e 2 para
+Requester. Somente Manager recebe `catalog_templates.apply`; todo grant dos
+perfis subordinados também existe como combinação exata no Manager, preservando
+o contrato de antiescalada sem grants preventivos.
+
+O rollout `w4c_maintenance_catalogs_v1` reutiliza o ledger compartilhado,
+seleciona perfis oficiais exclusivamente por `template_key`, é determinístico,
+add-only e idempotente, e preserva Custom Profiles, grants existentes, nomes de
+exibição e exact overrides. Tenants existentes recebem somente os grants W4C
+aprovados; novos tenants usam diretamente os templates v4 por meio do
+provisionamento existente.
+
+O pgTAP `w4c_authorization_contract_rollout.sql` cobre o catálogo 31/31, matriz
+de baselines, ausência dos scopes e ações proibidos, delegação exata,
+`reactivate`, boundary do helper privilegiado, ausência das tabelas de domínio,
+rollout/replay, preservação de customizações, tenants existentes e novos,
+AUTH-01 fail-closed e regressão dos catálogos W2/W4A/W4B. O inventário de
+hardening W2E foi estendido somente para allowlistar o novo helper privado, e o
+runner local passou a incluir a migration e o pgTAP W4C.1. A proteção histórica
+contra antecipação das tabelas W4C permanece inalterada. A fixture histórica
+W4B.1 agora exercita seu rollout na versão v3 dentro da própria transação e
+restaura v4 antes de continuar, preservando tanto a prova original quanto o
+estado corrente introduzido pela W4C.1.
+
+Os gates sem Docker passaram com 195/195 testes unitários, typecheck, lint,
+build e 6/6 cenários E2E. O reset externo aplicou todas as migrations com
+sucesso. A primeira regressão DB externa executou 1.008 testes e revelou três
+expectativas históricas incompletas: as allowlists cumulativas W2B/W2D ainda
+terminavam na W4B.1, e a fixture W4C tentava reutilizar o bootstrap inicial
+one-shot para um segundo tenant. As allowlists passaram a enumerar exatamente
+os grants W4C.1, e a prova de novo tenant passou a usar o mecanismo real
+`private.provision_tenant_authorization` sobre uma fixture de tenant, conforme
+o padrão W2B. `SYSTEM_ALREADY_INITIALIZED` e o bootstrap de produção não foram
+alterados. O reteste externo posterior passou com lint de schema `public` e
+`private`, 19 arquivos pgTAP e 1.014 assertions, além dos runners de
+concorrência e runtime existentes. Com a evidência DB aprovada,
+`W4C_AUTHORIZATION_CATALOG_READY = YES`. Os gates
+`W4C_MAINTENANCE_CATALOGS_READY` e `CADASTRO_READY` permanecem `NO`; W4C.2 não
+foi iniciada.

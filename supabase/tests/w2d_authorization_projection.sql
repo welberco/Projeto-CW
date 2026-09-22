@@ -123,25 +123,51 @@ with approved_w2(code) as (
     ('shared.team_memberships.read.all_tenant'),
     ('shared.team_memberships.add.all_tenant'),
     ('shared.team_memberships.end.all_tenant')
+), approved_w4c(code) as (
+  values
+    ('maintenance.maintenance_categories.read.all_tenant'),
+    ('maintenance.maintenance_categories.lookup.all_tenant'),
+    ('maintenance.maintenance_categories.create.all_tenant'),
+    ('maintenance.maintenance_categories.update.all_tenant'),
+    ('maintenance.maintenance_categories.inactivate.all_tenant'),
+    ('maintenance.maintenance_subcategories.read.all_tenant'),
+    ('maintenance.maintenance_subcategories.lookup.all_tenant'),
+    ('maintenance.maintenance_subcategories.create.all_tenant'),
+    ('maintenance.maintenance_subcategories.update.all_tenant'),
+    ('maintenance.maintenance_subcategories.inactivate.all_tenant'),
+    ('maintenance.maintenance_reasons.read.all_tenant'),
+    ('maintenance.maintenance_reasons.lookup.all_tenant'),
+    ('maintenance.maintenance_reasons.create.all_tenant'),
+    ('maintenance.maintenance_reasons.update.all_tenant'),
+    ('maintenance.maintenance_reasons.inactivate.all_tenant'),
+    ('maintenance.document_types.read.all_tenant'),
+    ('maintenance.document_types.lookup.all_tenant'),
+    ('maintenance.checklist_templates.read.all_tenant'),
+    ('maintenance.checklist_templates.lookup.all_tenant'),
+    ('maintenance.catalog_templates.apply.all_tenant')
 )
 select
   pg_catalog.array_agg(approved.code order by approved.code) as codes,
   count(*)::integer as permission_count,
   count(*) filter (where approved.source_wave = 'W2')::integer as w2_permission_count,
   count(*) filter (where approved.source_wave = 'W4A')::integer as w4a_permission_count,
-  count(*) filter (where approved.source_wave = 'W4B.1')::integer as w4b_permission_count
+  count(*) filter (where approved.source_wave = 'W4B.1')::integer as w4b_permission_count,
+  count(*) filter (where approved.source_wave = 'W4C.1')::integer as w4c_permission_count
 from (
   select code, 'W2'::text as source_wave from approved_w2
   union all
   select code, 'W4A'::text as source_wave from approved_w4a
   union all
   select code, 'W4B.1'::text as source_wave from approved_w4b
+  union all
+  select code, 'W4C.1'::text as source_wave from approved_w4c
 ) as approved;
 grant select on w2d_expected_permissions to authenticated;
 
 select is((select w2_permission_count from w2d_expected_permissions), 11, 'the projection fixture preserves the exact W2 permission allowlist');
 select is((select w4a_permission_count from w2d_expected_permissions), 22, 'the projection fixture recognizes only the approved W4A manager extension');
 select is((select w4b_permission_count from w2d_expected_permissions), 10, 'the projection fixture recognizes only the approved W4B.1 manager extension');
+select is((select w4c_permission_count from w2d_expected_permissions), 20, 'the projection fixture recognizes only the approved W4C.1 manager extension');
 
 set local "request.jwt.claim.sub" = '18000000-0000-4000-8000-000000000002';
 set local role authenticated;
@@ -182,7 +208,7 @@ select is(
 select is(
   (select cardinality(permission_codes) from public.resolve_my_authorization()),
   (select permission_count from w2d_expected_permissions),
-  'the manager receives exactly the allowlisted W2, W4A and W4B.1 permission codes'
+  'the manager receives exactly the allowlisted W2, W4A, W4B.1 and W4C.1 permission codes'
 );
 select is(
   (

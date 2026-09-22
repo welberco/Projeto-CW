@@ -73,6 +73,7 @@ const expectedMigrationVersions = [
   '20260916000000',
   '20260917000000',
   '20260917001000',
+  '20260918000000',
 ]
 const expectedPublicTables = [
   'app_users',
@@ -290,6 +291,7 @@ switch (command) {
       'supabase/tests/w4a_structural_catalog_foundation.sql',
       'supabase/tests/w4b_authorization_contract_rollout.sql',
       'supabase/tests/w4b_team_domain_scope.sql',
+      'supabase/tests/w4c_authorization_contract_rollout.sql',
     ])
 
     runLocalNodeScript(w3cConcurrencyScript)
@@ -300,7 +302,7 @@ switch (command) {
     runLocalNodeScript(w4bConcurrencyScript)
 
     process.stdout.write(
-      'DB_SMOKE_OK: migrations W0-W3/W4A/W4B.1-W4B.2 aplicadas, schema esperado presente e testes pgTAP/concurrency/runner/adversarial aprovados.\n',
+      'DB_SMOKE_OK: migrations W0-W3/W4A/W4B.1-W4B.2/W4C.1 aplicadas, schema esperado presente e testes pgTAP/concurrency/runner/adversarial aprovados.\n',
     )
     break
   }

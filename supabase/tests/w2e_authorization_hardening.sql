@@ -132,7 +132,8 @@ values
   ('W4B.2', 'public', 'lookup_teams', true),
   ('W4B.2', 'public', 'list_my_teams', true),
   ('W4B.2', 'public', 'list_team_members', true),
-  ('W4B.2', 'public', 'list_teams_for_membership', true);
+  ('W4B.2', 'public', 'list_teams_for_membership', true),
+  ('W4C.1', 'private', 'apply_w4c_authorization_rollout', true);
 
 create temporary table w2e_expected_public_security_definers (
   routine regprocedure primary key
@@ -326,7 +327,7 @@ select is(
     ) as unexpected
   ),
   0::bigint,
-  'the authorization inventory contains no routine or security mode outside the explicit W0-W2, W4A and W4B allowlist'
+  'the authorization inventory contains no routine or security mode outside the explicit W0-W2 and W4A-W4C.1 allowlist'
 );
 select is(
   (
@@ -338,7 +339,7 @@ select is(
     ) as missing
   ),
   0::bigint,
-  'every explicitly allowlisted W0-W2, W4A and W4B routine remains present with its approved security mode'
+  'every explicitly allowlisted W0-W2 and W4A-W4C.1 routine remains present with its approved security mode'
 );
 select is(
   (
@@ -376,6 +377,17 @@ select is(
 select is(
   (
     select count(*)
+    from w2e_authorization_functions as actual
+    join w2e_expected_authorization_functions as expected
+      using (schema_name, proname, prosecdef)
+    where expected.source_wave = 'W4C.1'
+  ),
+  1::bigint,
+  'the W4C.1 rollout has its individually approved privileged security mode'
+);
+select is(
+  (
+    select count(*)
     from (
       select procedure.oid::regprocedure
       from pg_catalog.pg_proc as procedure
@@ -397,6 +409,7 @@ select is(
         'apply_w4a_authorization_rollout', 'protect_w4a_catalog_mutation',
         'can_access_w4a_catalog', 'assert_w4a_catalog_access',
         'execute_w4a_catalog_command', 'apply_w4b_authorization_rollout',
+        'apply_w4c_authorization_rollout',
         'protect_team_mutation', 'enforce_team_integrity',
         'protect_team_membership_mutation', 'enforce_team_membership_integrity',
         'bump_tenant_membership_revision_for_team',
@@ -407,7 +420,7 @@ select is(
       and grantee in ('PUBLIC', 'anon', 'authenticated', 'service_role', 'cw_worker')
   ),
   0::bigint,
-  'W4A and W4B private helpers expose no execution grant to client or technical API roles'
+  'W4A through W4C.1 private helpers expose no execution grant to client or technical API roles'
 );
 select is(
   (

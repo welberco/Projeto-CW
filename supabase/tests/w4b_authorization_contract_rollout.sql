@@ -102,11 +102,11 @@ select is(
     select count(*)
     from private.authorization_profile_templates
     where template_key in ('manager','technician','assistant','requester')
-      and template_version = 3
+      and template_version = 4
       and status = 'active'
   ),
   4::bigint,
-  'all four official templates advance exactly to version three'
+  'the W4B.1 grants remain attached after W4C.1 advances all official templates to version four'
 );
 select is(
   (
@@ -345,6 +345,13 @@ select id, tenant_id, membership_id, permission_id, effect, version, created_by,
 from public.tenant_permission_overrides
 where tenant_id = (select tenant_id from w4b_bootstrap);
 
+-- Exercise the historical W4B.1 rollout against its own frozen template
+-- version inside this transaction; W4C.1 is authoritative at rest on v4.
+update private.authorization_profile_templates
+set template_version = 3
+where template_key in ('manager','technician','assistant','requester')
+  and template_version = 4;
+
 delete from public.tenant_profile_permissions as baseline
 using public.tenant_profiles as profile, public.permission_catalog as permission
 where profile.id = baseline.profile_id
@@ -448,6 +455,12 @@ select is(
   15,
   'rollout replay returns the recorded result without applying grants again'
 );
+
+update private.authorization_profile_templates
+set template_version = 4
+where template_key in ('manager','technician','assistant','requester')
+  and template_version = 3;
+
 select is(
   (
     select count(*)
