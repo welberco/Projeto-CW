@@ -43,7 +43,15 @@ where (
        'create_team', 'update_team', 'inactivate_team', 'reactivate_team',
        'add_team_member', 'end_team_member', 'list_teams', 'get_team',
        'lookup_teams', 'list_my_teams', 'list_team_members',
-       'list_teams_for_membership'
+       'list_teams_for_membership',
+       'create_maintenance_category', 'update_maintenance_category',
+       'inactivate_maintenance_category', 'reactivate_maintenance_category',
+       'create_maintenance_subcategory', 'update_maintenance_subcategory',
+       'inactivate_maintenance_subcategory', 'reactivate_maintenance_subcategory',
+       'list_maintenance_categories', 'get_maintenance_category',
+       'lookup_maintenance_categories', 'list_maintenance_subcategories',
+       'get_maintenance_subcategory', 'lookup_maintenance_subcategories',
+       'get_cw_catalog_template_preview', 'apply_cw_catalog_template'
      )
      and not (procedure.proname = 'create_tenant_profile' and procedure.pronargs = 4)
    );
@@ -135,6 +143,29 @@ values
   ('W4B.2', 'public', 'list_teams_for_membership', true),
   ('W4C.1', 'private', 'apply_w4c_authorization_rollout', true);
 
+insert into w2e_expected_authorization_functions (source_wave, schema_name, proname, prosecdef)
+values
+  ('W4C.2', 'private', 'protect_w4c_taxonomy_mutation', false),
+  ('W4C.2', 'private', 'can_access_w4c_taxonomy', true),
+  ('W4C.2', 'private', 'assert_w4c_taxonomy_access', true),
+  ('W4C.2', 'private', 'execute_w4c_taxonomy_command', true),
+  ('W4C.2', 'public', 'create_maintenance_category', true),
+  ('W4C.2', 'public', 'update_maintenance_category', true),
+  ('W4C.2', 'public', 'inactivate_maintenance_category', true),
+  ('W4C.2', 'public', 'reactivate_maintenance_category', true),
+  ('W4C.2', 'public', 'create_maintenance_subcategory', true),
+  ('W4C.2', 'public', 'update_maintenance_subcategory', true),
+  ('W4C.2', 'public', 'inactivate_maintenance_subcategory', true),
+  ('W4C.2', 'public', 'reactivate_maintenance_subcategory', true),
+  ('W4C.2', 'public', 'list_maintenance_categories', true),
+  ('W4C.2', 'public', 'get_maintenance_category', true),
+  ('W4C.2', 'public', 'lookup_maintenance_categories', true),
+  ('W4C.2', 'public', 'list_maintenance_subcategories', true),
+  ('W4C.2', 'public', 'get_maintenance_subcategory', true),
+  ('W4C.2', 'public', 'lookup_maintenance_subcategories', true),
+  ('W4C.2', 'public', 'get_cw_catalog_template_preview', true),
+  ('W4C.2', 'public', 'apply_cw_catalog_template', true);
+
 create temporary table w2e_expected_public_security_definers (
   routine regprocedure primary key
 );
@@ -208,6 +239,25 @@ values
   ('public.list_my_teams()'::regprocedure),
   ('public.list_team_members(uuid,text,integer,integer)'::regprocedure),
   ('public.list_teams_for_membership(uuid,text,integer,integer)'::regprocedure);
+
+insert into w2e_expected_public_security_definers (routine)
+values
+  ('public.create_maintenance_category(text,text,text,text,uuid,text)'::regprocedure),
+  ('public.update_maintenance_category(uuid,bigint,text,text,text,text,uuid,text)'::regprocedure),
+  ('public.inactivate_maintenance_category(uuid,bigint,text,uuid,text)'::regprocedure),
+  ('public.reactivate_maintenance_category(uuid,bigint,text,uuid,text)'::regprocedure),
+  ('public.create_maintenance_subcategory(uuid,text,text,text,text,uuid,text)'::regprocedure),
+  ('public.update_maintenance_subcategory(uuid,bigint,uuid,text,text,text,text,uuid,text)'::regprocedure),
+  ('public.inactivate_maintenance_subcategory(uuid,bigint,text,uuid,text)'::regprocedure),
+  ('public.reactivate_maintenance_subcategory(uuid,bigint,text,uuid,text)'::regprocedure),
+  ('public.list_maintenance_categories(text,text,integer,integer)'::regprocedure),
+  ('public.get_maintenance_category(uuid)'::regprocedure),
+  ('public.lookup_maintenance_categories(text,integer)'::regprocedure),
+  ('public.list_maintenance_subcategories(uuid,text,text,integer,integer)'::regprocedure),
+  ('public.get_maintenance_subcategory(uuid)'::regprocedure),
+  ('public.lookup_maintenance_subcategories(uuid,text,integer)'::regprocedure),
+  ('public.get_cw_catalog_template_preview(text,bigint)'::regprocedure),
+  ('public.apply_cw_catalog_template(text,bigint,text,uuid,text)'::regprocedure);
 
 -- Integrated RLS, grants, function and default-privilege inventory.
 select is(
@@ -339,7 +389,7 @@ select is(
     ) as missing
   ),
   0::bigint,
-  'every explicitly allowlisted W0-W2 and W4A-W4C.1 routine remains present with its approved security mode'
+  'every explicitly allowlisted W0-W2 and W4A-W4C.2 routine remains present with its approved security mode'
 );
 select is(
   (
@@ -388,6 +438,17 @@ select is(
 select is(
   (
     select count(*)
+    from w2e_authorization_functions as actual
+    join w2e_expected_authorization_functions as expected
+      using (schema_name, proname, prosecdef)
+    where expected.source_wave = 'W4C.2'
+  ),
+  20::bigint,
+  'all W4C.2 helpers and public boundaries have individually approved security modes'
+);
+select is(
+  (
+    select count(*)
     from (
       select procedure.oid::regprocedure
       from pg_catalog.pg_proc as procedure
@@ -415,12 +476,14 @@ select is(
         'bump_tenant_membership_revision_for_team',
         'protect_sector_team_dependency', 'team_reaches', 'can_access_team',
         'assert_w4b_all_tenant_access', 'execute_team_command',
-        'execute_team_membership_command'
+        'execute_team_membership_command',
+        'protect_w4c_taxonomy_mutation', 'can_access_w4c_taxonomy',
+        'assert_w4c_taxonomy_access', 'execute_w4c_taxonomy_command'
       )
       and grantee in ('PUBLIC', 'anon', 'authenticated', 'service_role', 'cw_worker')
   ),
   0::bigint,
-  'W4A through W4C.1 private helpers expose no execution grant to client or technical API roles'
+  'W4A through W4C.2 private helpers expose no execution grant to client or technical API roles'
 );
 select is(
   (

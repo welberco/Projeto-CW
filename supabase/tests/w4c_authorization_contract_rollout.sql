@@ -267,8 +267,8 @@ select is(
        'document_types','checklist_templates','checklist_template_items',
        'catalog_templates','catalog_template_entries','catalog_template_applications'
      )),
-  0::bigint,
-  'W4C.1 creates no W4C domain table'
+  5::bigint,
+  'the later W4C.2 wave adds only its two taxonomy and three private template tables'
 );
 select is(
   (select count(*)
@@ -276,8 +276,16 @@ select is(
    join pg_catalog.pg_namespace as namespace on namespace.oid = procedure.pronamespace
    where namespace.nspname = 'public'
      and procedure.proname ~ '(maintenance_categor|maintenance_subcategor|maintenance_reason|document_type|checklist_template|cw_catalog_template)'),
+  16::bigint,
+  'the later W4C.2 wave adds exactly its nine commands and seven read boundaries'
+);
+select is(
+  (select count(*) from pg_catalog.pg_class as relation
+   join pg_catalog.pg_namespace as namespace on namespace.oid = relation.relnamespace
+   where namespace.nspname = 'public' and relation.relkind in ('r','p')
+     and relation.relname in ('maintenance_reasons','document_types','checklist_templates','checklist_template_items')),
   0::bigint,
-  'W4C.1 creates no W4C domain command or read model'
+  'the W4C.2 boundary still does not anticipate W4C.3 tables'
 );
 select is(
   has_table_privilege('service_role', 'public.permission_catalog', 'SELECT'),

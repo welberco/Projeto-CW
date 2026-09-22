@@ -801,12 +801,14 @@ provisionamento existente.
 
 O pgTAP `w4c_authorization_contract_rollout.sql` cobre o catálogo 31/31, matriz
 de baselines, ausência dos scopes e ações proibidos, delegação exata,
-`reactivate`, boundary do helper privilegiado, ausência das tabelas de domínio,
+`reactivate`, boundary do helper privilegiado e boundary incremental do domínio,
 rollout/replay, preservação de customizações, tenants existentes e novos,
 AUTH-01 fail-closed e regressão dos catálogos W2/W4A/W4B. O inventário de
 hardening W2E foi estendido somente para allowlistar o novo helper privado, e o
-runner local passou a incluir a migration e o pgTAP W4C.1. A proteção histórica
-contra antecipação das tabelas W4C permanece inalterada. A fixture histórica
+runner local passou a incluir a migration e o pgTAP W4C.1. A prova histórica
+de ausência de domínio foi posteriormente evoluída pela W4C.2 para aceitar
+somente suas tabelas/boundaries e continuar proibindo a antecipação da W4C.3.
+A fixture histórica
 W4B.1 agora exercita seu rollout na versão v3 dentro da própria transação e
 restaura v4 antes de continuar, preservando tanto a prova original quanto o
 estado corrente introduzido pela W4C.1.
@@ -824,5 +826,70 @@ alterados. O reteste externo posterior passou com lint de schema `public` e
 `private`, 19 arquivos pgTAP e 1.014 assertions, além dos runners de
 concorrência e runtime existentes. Com a evidência DB aprovada,
 `W4C_AUTHORIZATION_CATALOG_READY = YES`. Os gates
-`W4C_MAINTENANCE_CATALOGS_READY` e `CADASTRO_READY` permanecem `NO`; W4C.2 não
-foi iniciada.
+`W4C_MAINTENANCE_CATALOGS_READY` e `CADASTRO_READY` permanecem `NO`.
+
+## W4C.2 — Maintenance Taxonomy and Template CW
+
+Em 2026-09-22 foi implementado o recorte autorizado da W4C.2: Categorias e
+Subcategorias de Manutenção, seus commands/read models e o Template CW v1 da
+taxonomia. A migration
+`20260918001000_w4c_maintenance_taxonomy_template.sql` cria
+`public.maintenance_categories` e `public.maintenance_subcategories` como
+entidades tenant-owned com lifecycle `active|inactive`, optimistic locking,
+autoria e unicidade normalizada de código. A relação composta
+`(tenant_id, category_id)` limita estruturalmente o domínio a dois níveis e
+impede referência cross-tenant; não existe árvore genérica, `team_id`, cascade
+de lifecycle ou hard delete.
+
+Os nove commands explícitos cobrem create/update/inactivate/reactivate das
+duas entidades e a aplicação do Template CW. Eles derivam tenant e ator do
+contexto, usam a permission
+exata do Resource mutado, lock autoritativo do ator, lock transacional comum da
+taxonomia, idempotência W3, expected version e efeitos Audit/History/Outbox. A
+Categoria não inativa com Subcategoria ativa, e Subcategoria não nasce nem
+reativa sob Categoria inativa. A permission de lookup continua sendo apenas
+discovery e não é pré-condição de mutation. O guard adicional contra Modelo de
+Checklist ativo será acrescentado somente quando a W4C.3 criar esse domínio.
+
+Os sete read models são `list_maintenance_categories`,
+`get_maintenance_category`, `lookup_maintenance_categories`,
+`list_maintenance_subcategories`, `get_maintenance_subcategory` e
+`lookup_maintenance_subcategories`, além de `get_cw_catalog_template_preview`.
+List/get exigem `read`, lookup exige
+`lookup`, inativos permanecem administrativamente legíveis mas não aparecem
+nos seletores, e o filtro por Categoria nunca amplia o tenant derivado.
+
+O mecanismo privado usa `private.catalog_templates`,
+`private.catalog_template_entries` e
+`private.catalog_template_applications`, sem grant direto de cliente.
+`get_cw_catalog_template_preview` reutiliza a capability exata
+`maintenance.catalog_templates.apply.all_tenant` e expõe somente versão,
+contagens e conteúdo allowlisted. `apply_cw_catalog_template` aceita somente o
+Template `cw_maintenance_taxonomy` v1, exige os dois catálogos integralmente
+vazios sob o mesmo lock das mutations manuais, cria cópias tenant-owned em uma
+transação e registra ledger único, Audit da aplicação, History/Event por cópia
+e Event da aplicação. Replay é estável; chaves diferentes não duplicam o
+ledger; não há merge, auto-sync ou FK runtime dos registros tenant para o
+template global.
+
+O Template CW v1 contém exatamente as 11 Categorias e 39 Subcategorias já
+congeladas, inclusive as duas ocorrências contextualmente válidas de
+“Iluminação de emergência”. Motivos, Tipos de Documento, Modelos/Itens de
+Checklist, boundary TypeScript, tipos gerados e UI permanecem ausentes deste
+recorte. O runner `w4c-concurrency-test.mjs` cobre 12 casos aplicáveis à
+taxonomia: replay e colisão de create, optimistic update, update/inactivate,
+duas disputas pai-filho, unicidade contextual, duas formas de concorrência na
+aplicação, aplicação versus criação manual de Categoria/Subcategoria e
+rollback atômico. As duas classes congeladas que dependem de Modelo de
+Checklist serão exercitadas quando esse domínio existir na W4C.3; não foi
+fabricado um domínio antecipado para simulá-las.
+
+O pgTAP `w4c_maintenance_taxonomy_template.sql`, o inventário cumulativo W2E,
+o boundary histórico W4C.1 e o smoke local foram atualizados para o novo
+contrato. A validação externa final, após reset local completo, aprovou lint de
+schema `public` e `private`, 20 arquivos pgTAP com 1.091 assertions, as 75
+assertions W4C.2 e os 12 casos de concorrência do Template CW. O smoke final
+foi aprovado com as migrations W0-W3/W4A/W4B.1-W4B.2/W4C.1-W4C.2. Assim,
+`W4C_TAXONOMY_TEMPLATE_READY = YES` e `W4C_AUTHORIZATION_CATALOG_READY = YES`.
+`W4C_MAINTENANCE_CATALOGS_READY` e `CADASTRO_READY` permanecem `NO`; a W4C.3
+ainda não foi iniciada.
