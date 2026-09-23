@@ -267,8 +267,8 @@ select is(
        'document_types','checklist_templates','checklist_template_items',
        'catalog_templates','catalog_template_entries','catalog_template_applications'
      )),
-  5::bigint,
-  'the later W4C.2 wave adds only its two taxonomy and three private template tables'
+  9::bigint,
+  'the later W4C.2 and W4C.3 waves add only their approved taxonomy, template and supporting catalog tables'
 );
 select is(
   (select count(*)
@@ -276,16 +276,16 @@ select is(
    join pg_catalog.pg_namespace as namespace on namespace.oid = procedure.pronamespace
    where namespace.nspname = 'public'
      and procedure.proname ~ '(maintenance_categor|maintenance_subcategor|maintenance_reason|document_type|checklist_template|cw_catalog_template)'),
-  16::bigint,
-  'the later W4C.2 wave adds exactly its nine commands and seven read boundaries'
+  37::bigint,
+  'the later W4C.2 and W4C.3 waves add exactly their approved command and read boundaries'
 );
 select is(
   (select count(*) from pg_catalog.pg_class as relation
    join pg_catalog.pg_namespace as namespace on namespace.oid = relation.relnamespace
    where namespace.nspname = 'public' and relation.relkind in ('r','p')
      and relation.relname in ('maintenance_reasons','document_types','checklist_templates','checklist_template_items')),
-  0::bigint,
-  'the W4C.2 boundary still does not anticipate W4C.3 tables'
+  4::bigint,
+  'the evolved boundary recognizes exactly the four approved W4C.3 supporting catalog tables'
 );
 select is(
   has_table_privilege('service_role', 'public.permission_catalog', 'SELECT'),

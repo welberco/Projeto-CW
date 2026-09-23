@@ -223,8 +223,10 @@ select is((select count(*) from pg_catalog.pg_constraint c join pg_catalog.pg_cl
   and c.confrelid in ('private.catalog_templates'::regclass,'private.catalog_template_entries'::regclass)),0::bigint,
   'tenant-owned copies have no runtime FK to global templates');
 select is((select count(*) from pg_catalog.pg_class r join pg_catalog.pg_namespace n on n.oid=r.relnamespace
-  where n.nspname='public' and r.relname in ('maintenance_reasons','document_types','checklist_templates','checklist_template_items')),0::bigint,
-  'W4C.3 domain remains absent');
+  where n.nspname='public' and r.relname in ('maintenance_reasons','document_types','checklist_templates','checklist_template_items')),4::bigint,
+  'the later W4C.3 wave adds exactly its four supporting catalog tables');
+select is((select count(*) from public.maintenance_reasons),0::bigint,
+  'W4C.3 does not mutate Template CW v1 by seeding maintenance reasons');
 
 select * from finish();
 rollback;

@@ -51,7 +51,18 @@ where (
        'list_maintenance_categories', 'get_maintenance_category',
        'lookup_maintenance_categories', 'list_maintenance_subcategories',
        'get_maintenance_subcategory', 'lookup_maintenance_subcategories',
-       'get_cw_catalog_template_preview', 'apply_cw_catalog_template'
+       'get_cw_catalog_template_preview', 'apply_cw_catalog_template',
+       'create_maintenance_reason', 'update_maintenance_reason',
+       'inactivate_maintenance_reason', 'reactivate_maintenance_reason',
+       'create_document_type', 'update_document_type',
+       'inactivate_document_type', 'reactivate_document_type',
+       'create_checklist_template', 'update_checklist_template_definition',
+       'inactivate_checklist_template', 'reactivate_checklist_template',
+       'list_maintenance_reasons', 'get_maintenance_reason',
+       'lookup_maintenance_reasons', 'list_document_types',
+       'get_document_type', 'lookup_document_types',
+       'list_checklist_templates', 'get_checklist_template',
+       'lookup_checklist_templates'
      )
      and not (procedure.proname = 'create_tenant_profile' and procedure.pronargs = 4)
    );
@@ -166,6 +177,37 @@ values
   ('W4C.2', 'public', 'get_cw_catalog_template_preview', true),
   ('W4C.2', 'public', 'apply_cw_catalog_template', true);
 
+insert into w2e_expected_authorization_functions (source_wave, schema_name, proname, prosecdef)
+values
+  ('W4C.3', 'private', 'protect_w4c3_catalog_mutation', false),
+  ('W4C.3', 'private', 'protect_category_checklist_dependency', false),
+  ('W4C.3', 'private', 'can_access_w4c3_catalog', true),
+  ('W4C.3', 'private', 'assert_w4c3_catalog_access', true),
+  ('W4C.3', 'private', 'execute_w4c3_simple_catalog_command', true),
+  ('W4C.3', 'private', 'validate_checklist_template_items', false),
+  ('W4C.3', 'private', 'execute_checklist_template_command', true),
+  ('W4C.3', 'public', 'create_maintenance_reason', true),
+  ('W4C.3', 'public', 'update_maintenance_reason', true),
+  ('W4C.3', 'public', 'inactivate_maintenance_reason', true),
+  ('W4C.3', 'public', 'reactivate_maintenance_reason', true),
+  ('W4C.3', 'public', 'create_document_type', true),
+  ('W4C.3', 'public', 'update_document_type', true),
+  ('W4C.3', 'public', 'inactivate_document_type', true),
+  ('W4C.3', 'public', 'reactivate_document_type', true),
+  ('W4C.3', 'public', 'create_checklist_template', true),
+  ('W4C.3', 'public', 'update_checklist_template_definition', true),
+  ('W4C.3', 'public', 'inactivate_checklist_template', true),
+  ('W4C.3', 'public', 'reactivate_checklist_template', true),
+  ('W4C.3', 'public', 'list_maintenance_reasons', true),
+  ('W4C.3', 'public', 'get_maintenance_reason', true),
+  ('W4C.3', 'public', 'lookup_maintenance_reasons', true),
+  ('W4C.3', 'public', 'list_document_types', true),
+  ('W4C.3', 'public', 'get_document_type', true),
+  ('W4C.3', 'public', 'lookup_document_types', true),
+  ('W4C.3', 'public', 'list_checklist_templates', true),
+  ('W4C.3', 'public', 'get_checklist_template', true),
+  ('W4C.3', 'public', 'lookup_checklist_templates', true);
+
 create temporary table w2e_expected_public_security_definers (
   routine regprocedure primary key
 );
@@ -257,7 +299,28 @@ values
   ('public.get_maintenance_subcategory(uuid)'::regprocedure),
   ('public.lookup_maintenance_subcategories(uuid,text,integer)'::regprocedure),
   ('public.get_cw_catalog_template_preview(text,bigint)'::regprocedure),
-  ('public.apply_cw_catalog_template(text,bigint,text,uuid,text)'::regprocedure);
+  ('public.apply_cw_catalog_template(text,bigint,text,uuid,text)'::regprocedure),
+  ('public.create_maintenance_reason(text,text,text,text,text,uuid,text)'::regprocedure),
+  ('public.update_maintenance_reason(uuid,bigint,text,text,text,text,uuid,text)'::regprocedure),
+  ('public.inactivate_maintenance_reason(uuid,bigint,text,uuid,text)'::regprocedure),
+  ('public.reactivate_maintenance_reason(uuid,bigint,text,uuid,text)'::regprocedure),
+  ('public.create_document_type(text,text,text,text,uuid,text)'::regprocedure),
+  ('public.update_document_type(uuid,bigint,text,text,text,text,uuid,text)'::regprocedure),
+  ('public.inactivate_document_type(uuid,bigint,text,uuid,text)'::regprocedure),
+  ('public.reactivate_document_type(uuid,bigint,text,uuid,text)'::regprocedure),
+  ('public.create_checklist_template(uuid,text,text,text,jsonb,text,uuid,text)'::regprocedure),
+  ('public.update_checklist_template_definition(uuid,bigint,uuid,text,text,text,jsonb,text,uuid,text)'::regprocedure),
+  ('public.inactivate_checklist_template(uuid,bigint,text,uuid,text)'::regprocedure),
+  ('public.reactivate_checklist_template(uuid,bigint,text,uuid,text)'::regprocedure),
+  ('public.list_maintenance_reasons(text,text,text,integer,integer)'::regprocedure),
+  ('public.get_maintenance_reason(uuid)'::regprocedure),
+  ('public.lookup_maintenance_reasons(text,text,integer)'::regprocedure),
+  ('public.list_document_types(text,text,integer,integer)'::regprocedure),
+  ('public.get_document_type(uuid)'::regprocedure),
+  ('public.lookup_document_types(text,integer)'::regprocedure),
+  ('public.list_checklist_templates(uuid,text,text,integer,integer)'::regprocedure),
+  ('public.get_checklist_template(uuid)'::regprocedure),
+  ('public.lookup_checklist_templates(uuid,text,integer)'::regprocedure);
 
 -- Integrated RLS, grants, function and default-privilege inventory.
 select is(
@@ -377,7 +440,7 @@ select is(
     ) as unexpected
   ),
   0::bigint,
-  'the authorization inventory contains no routine or security mode outside the explicit W0-W2 and W4A-W4C.1 allowlist'
+  'the authorization inventory contains no routine or security mode outside the explicit W0-W2 and W4A-W4C.3 allowlist'
 );
 select is(
   (
@@ -389,7 +452,7 @@ select is(
     ) as missing
   ),
   0::bigint,
-  'every explicitly allowlisted W0-W2 and W4A-W4C.2 routine remains present with its approved security mode'
+  'every explicitly allowlisted W0-W2 and W4A-W4C.3 routine remains present with its approved security mode'
 );
 select is(
   (
@@ -449,6 +512,17 @@ select is(
 select is(
   (
     select count(*)
+    from w2e_authorization_functions as actual
+    join w2e_expected_authorization_functions as expected
+      using (schema_name, proname, prosecdef)
+    where expected.source_wave = 'W4C.3'
+  ),
+  28::bigint,
+  'all W4C.3 helpers and public boundaries have individually approved security modes'
+);
+select is(
+  (
+    select count(*)
     from (
       select procedure.oid::regprocedure
       from pg_catalog.pg_proc as procedure
@@ -478,12 +552,16 @@ select is(
         'assert_w4b_all_tenant_access', 'execute_team_command',
         'execute_team_membership_command',
         'protect_w4c_taxonomy_mutation', 'can_access_w4c_taxonomy',
-        'assert_w4c_taxonomy_access', 'execute_w4c_taxonomy_command'
+        'assert_w4c_taxonomy_access', 'execute_w4c_taxonomy_command',
+        'protect_w4c3_catalog_mutation', 'protect_category_checklist_dependency',
+        'can_access_w4c3_catalog', 'assert_w4c3_catalog_access',
+        'execute_w4c3_simple_catalog_command', 'validate_checklist_template_items',
+        'execute_checklist_template_command'
       )
       and grantee in ('PUBLIC', 'anon', 'authenticated', 'service_role', 'cw_worker')
   ),
   0::bigint,
-  'W4A through W4C.2 private helpers expose no execution grant to client or technical API roles'
+  'W4A through W4C.3 private helpers expose no execution grant to client or technical API roles'
 );
 select is(
   (

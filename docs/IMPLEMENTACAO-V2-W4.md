@@ -891,5 +891,73 @@ schema `public` e `private`, 20 arquivos pgTAP com 1.091 assertions, as 75
 assertions W4C.2 e os 12 casos de concorrência do Template CW. O smoke final
 foi aprovado com as migrations W0-W3/W4A/W4B.1-W4B.2/W4C.1-W4C.2. Assim,
 `W4C_TAXONOMY_TEMPLATE_READY = YES` e `W4C_AUTHORIZATION_CATALOG_READY = YES`.
-`W4C_MAINTENANCE_CATALOGS_READY` e `CADASTRO_READY` permanecem `NO`; a W4C.3
-ainda não foi iniciada.
+`W4C_MAINTENANCE_CATALOGS_READY` e `CADASTRO_READY` permanecem `NO`.
+
+## W4C.3 — Supporting Catalog Skeletons
+
+Em 2026-09-23 foi implementado o domínio DB da W4C.3 na migration
+`20260918002000_w4c_supporting_catalog_skeletons.sql`, sem antecipar a boundary
+tipada da W4C.4. O recorte cria `public.maintenance_reasons`,
+`public.document_types`, `public.checklist_templates` e
+`public.checklist_template_items`. As quatro estruturas são tenant-owned,
+possuem relações compostas tenant-safe, grants mínimos e ENABLE/FORCE RLS. Os
+itens permanecem subordinados ao Modelo: não possuem Resource, permission,
+RPC ou acesso direto independente.
+
+Motivos aceitam exatamente `CANCEL_REQUEST`, `REJECT_REQUEST`,
+`PAUSE_WORK_ORDER`, `CANCEL_WORK_ORDER` e `RETURN_WORK_ORDER`. O contexto é
+obrigatório e imutável. Tipos de Documento armazenam apenas metadados de
+classificação e não criam Storage. Modelos de Checklist exigem Categoria ativa
+e possuem definição atômica e ordenada com os tipos `DONE_NOT_DONE`,
+`CONFORMING_NONCONFORMING`, `YES_NO`, `TEXT`, `NUMBER` e `OBSERVATION`; não
+existem execução, respostas, evidências ou snapshot de OS nesta wave.
+
+Os 12 commands e nove read models congelados reutilizam exclusivamente as
+permissions W4C.1 e o entitlement `maintenance`. Tenant e ator vêm do contexto
+autenticado atual; não foram criados TEAM, OWN ou ASSIGNED. Commands retornam
+somente `{id, version, status, command_correlation_id}` e reutilizam Audit,
+History, Outbox, idempotência, optimistic locking e lifecycle existentes.
+Inativos deixam lookup sem desaparecer de list/get administrativos. Não há
+hard delete, cascade ou mutação direta de cliente. Categoria não inativa com
+Modelo ativo e Modelo não reativa sob Categoria inativa.
+
+### Clarificação arquitetural da W4C.3 — Opção 3
+
+A decisão formal desta implementação preserva a imutabilidade semântica do
+Template CW v1:
+
+- `W4C3_REASON_DOMAIN = IMPLEMENTED`;
+- `W4C3_REASON_SEEDS = DEFERRED`;
+- `TEMPLATE_CW_V1_CHANGED = NO`.
+
+O Template `cw_maintenance_taxonomy`, versão 1 e schema 1, continua contendo
+exatamente 11 Categorias e 39 Subcategorias. Maintenance Reasons não integram
+esse template e nenhum tenant recebe Reason automaticamente na W4C.3. Não há
+auto-sync, merge, Template v2 ou mecanismo de upgrade v1→v2. Os seeds de
+`CANCEL_WORK_ORDER` e `RETURN_WORK_ORDER` continuam deferidos como já previsto;
+os demais contextos também ficam sem seed nesta wave para não alterar
+retroativamente o contrato do Template v1. Uma futura estratégia de
+seed/versionamento/upgrade exigirá decisão explícita separada.
+
+O pgTAP `w4c_supporting_catalog_skeletons.sql` cobre estrutura, contracts,
+grants, RLS, contexts, lifecycle, optimistic locking, autorização,
+anti-enumeration, efeitos, idempotência, ausência de seeds e preservação exata
+do Template v1. O runner `w4c3-concurrency-test.mjs` mantém sessões PostgreSQL
+independentes, reaplica JWT/role em cada conexão e cobre 12 disputas reais de
+replay, unicidade contextual, versões, lifecycle pai-filho e substituição
+atômica da definição. O inventário cumulativo W2E, os boundaries históricos e
+o smoke local foram evoluídos sem enfraquecer a proteção contra ondas futuras.
+A validação externa final reconstruiu a cadeia completa com
+`npm run db:reset` e aprovou `npm run test:v2:db`: lint dos schemas `public` e
+`private`, 21 arquivos pgTAP com 1.172 assertions e todos os runners,
+inclusive os 12 casos reais de `w4c3-concurrency-test.mjs`. Durante a
+validação, o trigger compartilhado foi corrigido para acessar
+`usage_context` somente no branch de `maintenance_reasons`; Document Type e
+Checklist Template não acessam esse campo. As expectativas de teste foram
+alinhadas ao contrato real de History (`history_type`) e aos quatro creates
+legítimos do cenário — dois Motivos, um Tipo de Documento e um Modelo de
+Checklist — sem relaxar Audit, History, Outbox ou idempotência.
+
+Assim, `W4C_SUPPORTING_CATALOGS_READY = YES`. A W4C.4 ainda é necessária para
+o gate integrado: `W4C_MAINTENANCE_CATALOGS_READY = NO` e `CADASTRO_READY = NO`.
+`READY_FOR_W4C4 = YES`.
