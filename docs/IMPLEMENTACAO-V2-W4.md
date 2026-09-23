@@ -961,3 +961,36 @@ Checklist — sem relaxar Audit, History, Outbox ou idempotência.
 Assim, `W4C_SUPPORTING_CATALOGS_READY = YES`. A W4C.4 ainda é necessária para
 o gate integrado: `W4C_MAINTENANCE_CATALOGS_READY = NO` e `CADASTRO_READY = NO`.
 `READY_FOR_W4C4 = YES`.
+
+## W4C.4 — Typed Boundary and Integrated Hardening
+
+Em 2026-09-23 foi concluída a boundary tipada integrada da W4C, sem alterar
+migrations, sem alterar a semântica de autorização e sem antecipar W4D. O
+contrato em `src/shared/maintenance-catalogs/maintenance-catalogs.ts` valida
+estritamente os 21 commands, os 16 read models, os resultados de command e o
+resultado imutável de aplicação do Template CW. Ele preserva os cinco contextos
+de Motivo, os seis tipos de resposta de Checklist, UUIDs, versões positivas,
+enums, paginação e a regra de posições únicas dos itens de Checklist. O
+resultado legado `correlation_id` não é aceito; a boundary exige
+`command_correlation_id`.
+
+`src/infrastructure/supabase/maintenance-catalog-gateway.ts` expõe somente os
+37 contratos aprovados e usa exclusivamente RPCs autenticadas. Tenant, ator,
+papel e escopo não são aceitos como autoridade em payloads do cliente; não há
+consulta direta a tabelas, `service_role` ou bypass de RLS. Respostas SQL são
+validadas antes de cruzar a boundary, falhas de autorização/conflito/estado são
+normalizadas para `AppError` e detalhes anti-enumeration permanecem `null`.
+As query keys incluem explicitamente a identidade do tenant, resource,
+projection e filtros, sem introduzir autoridade de tenant no command.
+
+Os testes unitários de boundary e gateway cobrem o conjunto de commands e
+leituras, o mapeamento RPC, ausência de acesso `from`, payloads inválidos,
+projeções expandidas, erros de autorização/conflito, resultados malformados,
+Template CW e isolamento de cache. `database.types.ts` foi preservado como
+artefato gerado externamente por `SUPABASE_CLI_LOCAL`; nenhuma edição manual ou
+regeneração foi realizada nesta wave. A evidência DB externa W4C.3 permanece a
+autoridade para migrations, pgTAP, RLS, grants e concorrência; nenhum comando
+Docker/Supabase local foi executado nesta etapa de boundary.
+
+Assim, `W4C_MAINTENANCE_CATALOGS_READY = YES`, `CADASTRO_READY = NO` e
+`READY_FOR_W4D = YES`.

@@ -117,6 +117,144 @@ export type Database = {
           },
         ]
       }
+      checklist_template_items: {
+        Row: {
+          created_at: string
+          created_by: string
+          id: string
+          instructions: string | null
+          position: number
+          prompt: string
+          required: boolean
+          response_type: string
+          template_id: string
+          tenant_id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          id?: string
+          instructions?: string | null
+          position: number
+          prompt: string
+          required: boolean
+          response_type: string
+          template_id: string
+          tenant_id: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          id?: string
+          instructions?: string | null
+          position?: number
+          prompt?: string
+          required?: boolean
+          response_type?: string
+          template_id?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "checklist_template_items_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "app_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "checklist_template_items_template_fk"
+            columns: ["tenant_id", "template_id"]
+            isOneToOne: false
+            referencedRelation: "checklist_templates"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "checklist_template_items_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      checklist_templates: {
+        Row: {
+          category_id: string
+          code: string | null
+          created_at: string
+          created_by: string
+          description: string | null
+          id: string
+          inactivated_at: string | null
+          name: string
+          status: string
+          tenant_id: string
+          updated_at: string
+          updated_by: string
+          version: number
+        }
+        Insert: {
+          category_id: string
+          code?: string | null
+          created_at?: string
+          created_by: string
+          description?: string | null
+          id?: string
+          inactivated_at?: string | null
+          name: string
+          status?: string
+          tenant_id: string
+          updated_at?: string
+          updated_by: string
+          version?: number
+        }
+        Update: {
+          category_id?: string
+          code?: string | null
+          created_at?: string
+          created_by?: string
+          description?: string | null
+          id?: string
+          inactivated_at?: string | null
+          name?: string
+          status?: string
+          tenant_id?: string
+          updated_at?: string
+          updated_by?: string
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "checklist_templates_category_fk"
+            columns: ["tenant_id", "category_id"]
+            isOneToOne: false
+            referencedRelation: "maintenance_categories"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "checklist_templates_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "app_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "checklist_templates_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "checklist_templates_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "app_users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       cost_centers: {
         Row: {
           code: string
@@ -187,6 +325,73 @@ export type Database = {
           },
           {
             foreignKeyName: "cost_centers_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "app_users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      document_types: {
+        Row: {
+          code: string | null
+          created_at: string
+          created_by: string
+          description: string | null
+          id: string
+          inactivated_at: string | null
+          name: string
+          status: string
+          tenant_id: string
+          updated_at: string
+          updated_by: string
+          version: number
+        }
+        Insert: {
+          code?: string | null
+          created_at?: string
+          created_by: string
+          description?: string | null
+          id?: string
+          inactivated_at?: string | null
+          name: string
+          status?: string
+          tenant_id: string
+          updated_at?: string
+          updated_by: string
+          version?: number
+        }
+        Update: {
+          code?: string | null
+          created_at?: string
+          created_by?: string
+          description?: string | null
+          id?: string
+          inactivated_at?: string | null
+          name?: string
+          status?: string
+          tenant_id?: string
+          updated_at?: string
+          updated_by?: string
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "document_types_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "app_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "document_types_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "document_types_updated_by_fkey"
             columns: ["updated_by"]
             isOneToOne: false
             referencedRelation: "app_users"
@@ -419,6 +624,220 @@ export type Database = {
           },
           {
             foreignKeyName: "locations_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "app_users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      maintenance_categories: {
+        Row: {
+          code: string | null
+          created_at: string
+          created_by: string
+          description: string | null
+          id: string
+          inactivated_at: string | null
+          name: string
+          status: string
+          tenant_id: string
+          updated_at: string
+          updated_by: string
+          version: number
+        }
+        Insert: {
+          code?: string | null
+          created_at?: string
+          created_by: string
+          description?: string | null
+          id?: string
+          inactivated_at?: string | null
+          name: string
+          status?: string
+          tenant_id: string
+          updated_at?: string
+          updated_by: string
+          version?: number
+        }
+        Update: {
+          code?: string | null
+          created_at?: string
+          created_by?: string
+          description?: string | null
+          id?: string
+          inactivated_at?: string | null
+          name?: string
+          status?: string
+          tenant_id?: string
+          updated_at?: string
+          updated_by?: string
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "maintenance_categories_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "app_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "maintenance_categories_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "maintenance_categories_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "app_users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      maintenance_reasons: {
+        Row: {
+          code: string
+          created_at: string
+          created_by: string
+          description: string | null
+          id: string
+          inactivated_at: string | null
+          name: string
+          status: string
+          tenant_id: string
+          updated_at: string
+          updated_by: string
+          usage_context: string
+          version: number
+        }
+        Insert: {
+          code: string
+          created_at?: string
+          created_by: string
+          description?: string | null
+          id?: string
+          inactivated_at?: string | null
+          name: string
+          status?: string
+          tenant_id: string
+          updated_at?: string
+          updated_by: string
+          usage_context: string
+          version?: number
+        }
+        Update: {
+          code?: string
+          created_at?: string
+          created_by?: string
+          description?: string | null
+          id?: string
+          inactivated_at?: string | null
+          name?: string
+          status?: string
+          tenant_id?: string
+          updated_at?: string
+          updated_by?: string
+          usage_context?: string
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "maintenance_reasons_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "app_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "maintenance_reasons_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "maintenance_reasons_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "app_users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      maintenance_subcategories: {
+        Row: {
+          category_id: string
+          code: string | null
+          created_at: string
+          created_by: string
+          description: string | null
+          id: string
+          inactivated_at: string | null
+          name: string
+          status: string
+          tenant_id: string
+          updated_at: string
+          updated_by: string
+          version: number
+        }
+        Insert: {
+          category_id: string
+          code?: string | null
+          created_at?: string
+          created_by: string
+          description?: string | null
+          id?: string
+          inactivated_at?: string | null
+          name: string
+          status?: string
+          tenant_id: string
+          updated_at?: string
+          updated_by: string
+          version?: number
+        }
+        Update: {
+          category_id?: string
+          code?: string | null
+          created_at?: string
+          created_by?: string
+          description?: string | null
+          id?: string
+          inactivated_at?: string | null
+          name?: string
+          status?: string
+          tenant_id?: string
+          updated_at?: string
+          updated_by?: string
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "maintenance_subcategories_category_fk"
+            columns: ["tenant_id", "category_id"]
+            isOneToOne: false
+            referencedRelation: "maintenance_categories"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "maintenance_subcategories_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "app_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "maintenance_subcategories_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "maintenance_subcategories_updated_by_fkey"
             columns: ["updated_by"]
             isOneToOne: false
             referencedRelation: "app_users"
@@ -1160,6 +1579,16 @@ export type Database = {
         }
         Returns: Json
       }
+      apply_cw_catalog_template: {
+        Args: {
+          correlation_id: string
+          idempotency_key: string
+          reason: string
+          template_key: string
+          template_version: number
+        }
+        Returns: Json
+      }
       assign_tenant_membership_profile: {
         Args: {
           command_reason: string
@@ -1261,6 +1690,19 @@ export type Database = {
           receipt_replayed: boolean
         }[]
       }
+      create_checklist_template: {
+        Args: {
+          category_id: string
+          code: string
+          correlation_id: string
+          description: string
+          idempotency_key: string
+          items: Json
+          name: string
+          reason: string
+        }
+        Returns: Json
+      }
       create_cost_center: {
         Args: {
           code: string
@@ -1269,6 +1711,17 @@ export type Database = {
           idempotency_key: string
           name: string
           parent_id: string
+          reason: string
+        }
+        Returns: Json
+      }
+      create_document_type: {
+        Args: {
+          code: string
+          correlation_id: string
+          description: string
+          idempotency_key: string
+          name: string
           reason: string
         }
         Returns: Json
@@ -1288,6 +1741,41 @@ export type Database = {
       }
       create_location_type: {
         Args: {
+          code: string
+          correlation_id: string
+          description: string
+          idempotency_key: string
+          name: string
+          reason: string
+        }
+        Returns: Json
+      }
+      create_maintenance_category: {
+        Args: {
+          code: string
+          correlation_id: string
+          description: string
+          idempotency_key: string
+          name: string
+          reason: string
+        }
+        Returns: Json
+      }
+      create_maintenance_reason: {
+        Args: {
+          code: string
+          correlation_id: string
+          description: string
+          idempotency_key: string
+          name: string
+          reason: string
+          usage_context: string
+        }
+        Returns: Json
+      }
+      create_maintenance_subcategory: {
+        Args: {
+          category_id: string
           code: string
           correlation_id: string
           description: string
@@ -1422,6 +1910,21 @@ export type Database = {
           next_eligible_at: string
         }[]
       }
+      get_checklist_template: {
+        Args: { target_id: string }
+        Returns: {
+          category_id: string
+          code: string
+          created_at: string
+          description: string
+          id: string
+          items: Json
+          name: string
+          status: string
+          updated_at: string
+          version: number
+        }[]
+      }
       get_cost_center: {
         Args: { target_id: string }
         Returns: {
@@ -1431,6 +1934,23 @@ export type Database = {
           id: string
           name: string
           parent_id: string
+          status: string
+          updated_at: string
+          version: number
+        }[]
+      }
+      get_cw_catalog_template_preview: {
+        Args: { template_key?: string; template_version?: number }
+        Returns: Json
+      }
+      get_document_type: {
+        Args: { target_id: string }
+        Returns: {
+          code: string
+          created_at: string
+          description: string
+          id: string
+          name: string
           status: string
           updated_at: string
           version: number
@@ -1454,6 +1974,47 @@ export type Database = {
       get_location_type: {
         Args: { target_id: string }
         Returns: {
+          code: string
+          created_at: string
+          description: string
+          id: string
+          name: string
+          status: string
+          updated_at: string
+          version: number
+        }[]
+      }
+      get_maintenance_category: {
+        Args: { target_id: string }
+        Returns: {
+          code: string
+          created_at: string
+          description: string
+          id: string
+          name: string
+          status: string
+          updated_at: string
+          version: number
+        }[]
+      }
+      get_maintenance_reason: {
+        Args: { target_id: string }
+        Returns: {
+          code: string
+          created_at: string
+          description: string
+          id: string
+          name: string
+          status: string
+          updated_at: string
+          usage_context: string
+          version: number
+        }[]
+      }
+      get_maintenance_subcategory: {
+        Args: { target_id: string }
+        Returns: {
+          category_id: string
           code: string
           created_at: string
           description: string
@@ -1491,7 +2052,27 @@ export type Database = {
           version: number
         }[]
       }
+      inactivate_checklist_template: {
+        Args: {
+          correlation_id: string
+          expected_version: number
+          id: string
+          idempotency_key: string
+          reason: string
+        }
+        Returns: Json
+      }
       inactivate_cost_center: {
+        Args: {
+          correlation_id: string
+          expected_version: number
+          id: string
+          idempotency_key: string
+          reason: string
+        }
+        Returns: Json
+      }
+      inactivate_document_type: {
         Args: {
           correlation_id: string
           expected_version: number
@@ -1512,6 +2093,36 @@ export type Database = {
         Returns: Json
       }
       inactivate_location_type: {
+        Args: {
+          correlation_id: string
+          expected_version: number
+          id: string
+          idempotency_key: string
+          reason: string
+        }
+        Returns: Json
+      }
+      inactivate_maintenance_category: {
+        Args: {
+          correlation_id: string
+          expected_version: number
+          id: string
+          idempotency_key: string
+          reason: string
+        }
+        Returns: Json
+      }
+      inactivate_maintenance_reason: {
+        Args: {
+          correlation_id: string
+          expected_version: number
+          id: string
+          idempotency_key: string
+          reason: string
+        }
+        Returns: Json
+      }
+      inactivate_maintenance_subcategory: {
         Args: {
           correlation_id: string
           expected_version: number
@@ -1556,6 +2167,26 @@ export type Database = {
           invite_ref: string
         }[]
       }
+      list_checklist_templates: {
+        Args: {
+          category_filter?: string
+          result_limit?: number
+          result_offset?: number
+          search_text?: string
+          status_filter?: string
+        }
+        Returns: {
+          category_id: string
+          code: string
+          description: string
+          id: string
+          item_count: number
+          name: string
+          status: string
+          updated_at: string
+          version: number
+        }[]
+      }
       list_cost_center_children: {
         Args: { target_parent_id?: string }
         Returns: {
@@ -1580,6 +2211,23 @@ export type Database = {
           id: string
           name: string
           parent_id: string
+          status: string
+          updated_at: string
+          version: number
+        }[]
+      }
+      list_document_types: {
+        Args: {
+          result_limit?: number
+          result_offset?: number
+          search_text?: string
+          status_filter?: string
+        }
+        Returns: {
+          code: string
+          description: string
+          id: string
+          name: string
           status: string
           updated_at: string
           version: number
@@ -1628,6 +2276,61 @@ export type Database = {
           location_type_id: string
           name: string
           parent_id: string
+          status: string
+          updated_at: string
+          version: number
+        }[]
+      }
+      list_maintenance_categories: {
+        Args: {
+          result_limit?: number
+          result_offset?: number
+          search_text?: string
+          status_filter?: string
+        }
+        Returns: {
+          code: string
+          description: string
+          id: string
+          name: string
+          status: string
+          updated_at: string
+          version: number
+        }[]
+      }
+      list_maintenance_reasons: {
+        Args: {
+          result_limit?: number
+          result_offset?: number
+          search_text?: string
+          status_filter?: string
+          usage_context_filter?: string
+        }
+        Returns: {
+          code: string
+          description: string
+          id: string
+          name: string
+          status: string
+          updated_at: string
+          usage_context: string
+          version: number
+        }[]
+      }
+      list_maintenance_subcategories: {
+        Args: {
+          category_filter?: string
+          result_limit?: number
+          result_offset?: number
+          search_text?: string
+          status_filter?: string
+        }
+        Returns: {
+          category_id: string
+          code: string
+          description: string
+          id: string
+          name: string
           status: string
           updated_at: string
           version: number
@@ -1715,7 +2418,28 @@ export type Database = {
           team_id: string
         }[]
       }
+      lookup_checklist_templates: {
+        Args: {
+          category_filter?: string
+          result_limit?: number
+          search_text?: string
+        }
+        Returns: {
+          category_id: string
+          code: string
+          id: string
+          name: string
+        }[]
+      }
       lookup_cost_centers: {
+        Args: { result_limit?: number; search_text?: string }
+        Returns: {
+          code: string
+          id: string
+          name: string
+        }[]
+      }
+      lookup_document_types: {
         Args: { result_limit?: number; search_text?: string }
         Returns: {
           code: string
@@ -1733,6 +2457,38 @@ export type Database = {
       }
       lookup_locations: {
         Args: { result_limit?: number; search_text?: string }
+        Returns: {
+          code: string
+          id: string
+          name: string
+        }[]
+      }
+      lookup_maintenance_categories: {
+        Args: { result_limit?: number; search_text?: string }
+        Returns: {
+          code: string
+          id: string
+          name: string
+        }[]
+      }
+      lookup_maintenance_reasons: {
+        Args: {
+          result_limit?: number
+          search_text?: string
+          usage_context: string
+        }
+        Returns: {
+          code: string
+          id: string
+          name: string
+        }[]
+      }
+      lookup_maintenance_subcategories: {
+        Args: {
+          category_filter?: string
+          result_limit?: number
+          search_text?: string
+        }
         Returns: {
           code: string
           id: string
@@ -1777,7 +2533,27 @@ export type Database = {
         }
         Returns: Json
       }
+      reactivate_checklist_template: {
+        Args: {
+          correlation_id: string
+          expected_version: number
+          id: string
+          idempotency_key: string
+          reason: string
+        }
+        Returns: Json
+      }
       reactivate_cost_center: {
+        Args: {
+          correlation_id: string
+          expected_version: number
+          id: string
+          idempotency_key: string
+          reason: string
+        }
+        Returns: Json
+      }
+      reactivate_document_type: {
         Args: {
           correlation_id: string
           expected_version: number
@@ -1798,6 +2574,36 @@ export type Database = {
         Returns: Json
       }
       reactivate_location_type: {
+        Args: {
+          correlation_id: string
+          expected_version: number
+          id: string
+          idempotency_key: string
+          reason: string
+        }
+        Returns: Json
+      }
+      reactivate_maintenance_category: {
+        Args: {
+          correlation_id: string
+          expected_version: number
+          id: string
+          idempotency_key: string
+          reason: string
+        }
+        Returns: Json
+      }
+      reactivate_maintenance_reason: {
+        Args: {
+          correlation_id: string
+          expected_version: number
+          id: string
+          idempotency_key: string
+          reason: string
+        }
+        Returns: Json
+      }
+      reactivate_maintenance_subcategory: {
         Args: {
           correlation_id: string
           expected_version: number
@@ -1927,7 +2733,35 @@ export type Database = {
           profile_version: number
         }[]
       }
+      update_checklist_template_definition: {
+        Args: {
+          category_id: string
+          code: string
+          correlation_id: string
+          description: string
+          expected_version: number
+          id: string
+          idempotency_key: string
+          items: Json
+          name: string
+          reason: string
+        }
+        Returns: Json
+      }
       update_cost_center: {
+        Args: {
+          code: string
+          correlation_id: string
+          description: string
+          expected_version: number
+          id: string
+          idempotency_key: string
+          name: string
+          reason: string
+        }
+        Returns: Json
+      }
+      update_document_type: {
         Args: {
           code: string
           correlation_id: string
@@ -1956,6 +2790,46 @@ export type Database = {
       }
       update_location_type: {
         Args: {
+          code: string
+          correlation_id: string
+          description: string
+          expected_version: number
+          id: string
+          idempotency_key: string
+          name: string
+          reason: string
+        }
+        Returns: Json
+      }
+      update_maintenance_category: {
+        Args: {
+          code: string
+          correlation_id: string
+          description: string
+          expected_version: number
+          id: string
+          idempotency_key: string
+          name: string
+          reason: string
+        }
+        Returns: Json
+      }
+      update_maintenance_reason: {
+        Args: {
+          code: string
+          correlation_id: string
+          description: string
+          expected_version: number
+          id: string
+          idempotency_key: string
+          name: string
+          reason: string
+        }
+        Returns: Json
+      }
+      update_maintenance_subcategory: {
+        Args: {
+          category_id: string
           code: string
           correlation_id: string
           description: string
