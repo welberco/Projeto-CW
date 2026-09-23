@@ -994,3 +994,303 @@ Docker/Supabase local foi executado nesta etapa de boundary.
 
 Assim, `W4C_MAINTENANCE_CATALOGS_READY = YES`, `CADASTRO_READY = NO` e
 `READY_FOR_W4D = YES`.
+
+## W4D — Plano executivo da experiência de Cadastros
+
+### Estado e precedência
+
+Planejamento iniciado em 2026-09-23 sobre o commit W4C.4
+`0df257e508b0d536764542cb7b8be383bcc16d3f`, sem iniciar UI ou alterar
+contratos. W4A, W4B e W4C estão fechadas. O plano W4 original, seções 20–21,
+24 e 26, continua sendo a base; este detalhamento mantém suas rotas e critérios
+e usa o domínio realmente entregue. `CADASTRO_READY = NO` até o gate integrado.
+
+Decisões posteriores prevalecem sobre duas descrições históricas: `use`
+genérico dos cadastros foi retirado por decisão W4A/W4B/W4C; `lookup` é
+somente descoberta e não substitui `read` nem autoriza mutations. O Template
+CW v1 efetivo contém 11 Categorias e 39 Subcategorias, sem seeds de Motivos,
+conforme a Opção 3 da W4C.3. A proposta antiga de copiar Motivos no Template
+não descreve o artefato fechado e não será recuperada pela UI.
+
+O código atual usa React Router com rotas filhas de `e/:tenantRef`,
+`TenantRouteBoundary` e `TenantAppShell`; só há `dashboard` e `minha-conta`
+no tenant. O helper `canonicalTenantPath` hoje aceita apenas esses destinos e
+precisará suportar caminhos tenant validados, sem tratar `tenantRef` como
+autoridade. `PermissionGuard` usa a projeção W2 por permission code exato e
+entitlement; a autorização final permanece nas RPCs/RLS. `tenantQueryKey`
+já inclui principal, tenant, membership/revisões, perfil, revisão de catálogo,
+revisão de autorização e geração. As factories W4A/B/C acrescentam resource,
+projection e filtros, mas não substituem essa identidade de sessão. Há
+`Button` e `StatePanel`; não existem ainda tabela, filtro, diálogo, seletor ou
+formulário RHF de Cadastros na V2. Os E2E existentes cobrem somente fundação
+pública/sem autenticação; testes autenticados exigirão fixture local própria.
+
+### Arquitetura de informação e rotas reais
+
+Um único item primário **Cadastros** no shell. A página inicial mostra grupos
+e links somente quando há capacidade de leitura da página (`read.all_tenant`
+ou, para Equipes, `read.team`):
+
+- **Estrutura:** Tipos de Local, Locais, Centros de Custo, Setores;
+- **Pessoas e Equipes:** Equipes, com roster como detalhe subordinado;
+- **Manutenção:** Categorias/Subcategorias, Motivos, Tipos de Documento,
+  Modelos de Checklist; Template CW aparece junto da taxonomia quando houver
+  `maintenance.catalog_templates.apply.all_tenant` e entitlement.
+
+Paths canônicos abaixo de `/e/:tenantRef` (todos registrados no router, não
+trocas de painel na mesma URL):
+
+| Recurso | Lista | Detalhe/edição | Relação ou ação |
+| --- | --- | --- | --- |
+| entrada | `cadastros` | — | cards de grupos autorizados |
+| Tipos de Local | `cadastros/tipos-de-local` | `cadastros/tipos-de-local/:locationTypeId` | — |
+| Locais | `cadastros/locais` | `cadastros/locais/:locationId` | filhos no detalhe |
+| Centros de Custo | `cadastros/centros-de-custo` | `cadastros/centros-de-custo/:costCenterId` | filhos no detalhe |
+| Setores | `cadastros/setores` | `cadastros/setores/:sectorId` | — |
+| Equipes | `cadastros/equipes` | `cadastros/equipes/:teamId` | `cadastros/equipes/:teamId/membros` |
+| Categorias/Subcategorias | `manutencao/categorias` | `manutencao/categorias/:categoryId` | `manutencao/categorias/:categoryId/subcategorias/:subcategoryId` |
+| Motivos | `manutencao/motivos` | `manutencao/motivos/:reasonId` | filtro `contexto` na URL |
+| Tipos de Documento | `cadastros/tipos-de-documento` | `cadastros/tipos-de-documento/:documentTypeId` | — |
+| Modelos de Checklist | `manutencao/modelos-de-checklist` | `manutencao/modelos-de-checklist/:templateId` | editor de itens no detalhe |
+| Template CW | `manutencao/categorias/template-cw` | — | preview e aplicação explícita |
+
+Criação e edição usam formulários em diálogo na lista/detalhe; a página
+subjacente conserva sua URL e o registro editado tem URL de detalhe. Deep link,
+refresh e back/forward precisam preservar página e filtros (texto, status,
+parent, contexto e paginação real) via query string validada. `cadastros`
+mostra as opções permitidas; sem nenhuma, apresenta `NoPermissionPage`.
+Detalhes com UUID inválido caem em estado inexistente seguro. URL desconhecida
+permanece no `NotFoundPage` após validação do tenant. Sem session/contexto,
+aplica-se `TenantRouteBoundary`; sem capability da página, estado sem
+permissão, sem chamada de list/get/lookup. O redirect do índice tenant para
+`dashboard` permanece. Não redirecionar automaticamente usuário sem permissão
+para um recurso que não pode ler.
+
+### Capabilities de UX
+
+Usar `useAuthorization` e projeção atual para comparar códigos exatos, nunca
+nome de Perfil. Páginas administrativas exigem `*.read.all_tenant`; ações
+create/update/move/inactivate/reactivate/add/end/apply exigem seu código
+exato. Manutenção também exige entitlement `maintenance`. Equipes são exceção:
+list/detail podem ser lidos por `shared.teams.read.team` ou
+`shared.teams.read.all_tenant`, como alternativas independentes; `my-teams`
+é projeção self. Roster exige `shared.team_memberships.read.all_tenant`, e
+  add/end suas permissions próprias. A ação add fica no detalhe da Team mesmo
+  sem permissão de roster; nesse caso somente o seletor capability-bound fica
+  disponível, sem listar vínculos. End precisa de roster autorizado para
+  selecionar a associação existente. Acesso apenas a `lookup` nunca abre tela
+administrativa. Selectors utilizam as respectivas RPCs de lookup quando o
+usuário possui a capability; caso contrário, preservam o valor atual no
+detalhe autorizado e não consultam a coleção inteira. `reactivate` só aparece
+com grant explícito; nenhum dos quatro baselines o recebe automaticamente.
+Manager não ganha update de Tipos de Documento/Modelos de Checklist por nome
+de Perfil; Custom Profiles com grants exatos podem exercer essas ações.
+
+### Experiência por recurso
+
+- **Estrutura:** list/get administrativo com busca, status e offset/limit
+  suportados pelas RPCs; Local e Centro de Custo mostram filhos diretos, pai e
+  mudança de pai via command `move`, sem árvore arbitrária no cliente. Local
+  seleciona Tipo ativo; Centro de Custo permanece independente de Local.
+  Confirmar inativação, preservar inativos em list/get, removê-los de lookup.
+  Explicar bloqueio por Local/filho ativo e por Team ativa ao inativar Setor.
+- **Equipes:** list/detail, Setor opcional, lifecycle e roster paginado.
+  Mostrar ao próprio usuário `listMyTeams` quando a projeção TEAM estiver
+  disponível; múltiplas Teams aparecem separadamente. Roster só para quem
+  possui `team_memberships.read`. Add cria novo período; end pede confirmação
+  e versão atual; período `ended` é imutável. Inativação de Team com membro
+  ativo explica a necessidade de encerrar vínculos primeiro. Alteração de
+  membership requer atualização de autorização e cache derivado. A seleção
+  de novo membro usa somente a projection capability-bound definida abaixo;
+  o command `add_team_member` revalida a elegibilidade no momento do write.
+- **Taxonomia:** Categoria e Subcategoria na mesma área, com Subcategorias
+  filtradas pelo `categoryId` real. Profundidade exatamente dois; não há árvore
+  genérica. Bloqueio de inativação de Categoria com Subcategoria ou Modelo
+  ativo e de reativação de filho sob Categoria inativa deve indicar o próximo
+  passo sem cascade.
+- **Template CW:** entrada contextual em Categorias; preview autorizado de
+  `cw_maintenance_taxonomy` v1, 11/39, antes de confirmação. `Começar vazio`
+  apenas fecha a escolha, sem command. A UI pode mostrar elegibilidade
+  informativa após consultar listas, mas o command é a decisão final:
+  `MAINTENANCE_TAXONOMY_NOT_EMPTY` e aplicação prévia são tratados como
+  indisponibilidade, sem merge. Aplicação espera resposta transacional,
+  invalida Categoria/Subcategoria/preview relevante e esclarece que as cópias
+  são editáveis e não recebem sincronização ou upgrade. Motivos continuam
+  vazios até cadastro explícito; nenhuma seed é prometida.
+- **Motivos:** uma lista com filtro de contexto na query string e nomes
+  legíveis para os cinco valores fechados. O contexto é escolha obrigatória
+  na criação e somente leitura no detalhe/edição. Inativos ficam em list/get,
+  não em lookup. Não consumir Motivos em Request/OS nesta wave.
+- **Tipos de Documento:** list/get/lookup e lifecycle apenas para grants
+  específicos; administrar classificação textual, sem upload, arquivo ou
+  Storage. O baseline Manager é leitura/lookup.
+- **Modelos de Checklist:** list/get/lookup, Categoria ativa, status e editor
+  da definição completa. Itens são linhas ordenadas com `position` 1..10000,
+  `prompt`, `response_type` fechado, `required` e `instructions` anulável.
+  Adicionar/remover/reordenar por controles simples de subir/descer; no save,
+  enviar um array completo de 1..200 itens com posições únicas via
+  `updateChecklistTemplateDefinition` e `expectedVersion`. Não emitir writes
+  parciais de item. Conflito exige refetch e revisão antes de novo save.
+  Sem execução, resposta, evidência, OS ou snapshot nesta wave.
+
+### Formulários, queries, erros e acessibilidade
+
+RHF com resolver Zod somente para estado de formulário; derivar os campos de
+inputs das boundaries W4A/B/C, sem criar outra regra de domínio. Converter
+campo opcional de UI para `null` quando o command exige nullable; não omitir
+`reason`, correlation ID, idempotency key ou `expectedVersion` onde exigidos.
+Defaults vêm de get autorizado; update usa a versão carregada e não altera
+status por patch. Criar idempotency key por intenção/submissão e mantê-la em
+retry da mesma intenção; nova intenção recebe nova key. Em erro, preservar
+valores e não reportar sucesso. Cancelar descarta alterações; proteção de
+formulário sujo só se testes de navegação demonstrarem perda relevante.
+
+Compor `tenantQueryKey(projection, authorizationGeneration, resource,...)`
+com segmento W4A/B/C de resource/projection/id/filtros normalizados; uma
+única composição em hooks evita omitir principal/revisões. Incluir
+`categoryId`, `usageContext`, `teamId` no seletor de candidatos, status, busca,
+offset e limite quando aplicáveis.
+Não usar nome exibido ou `tenantRef` como identidade. Após sucesso confirmado,
+invalidar listas, detalhe e lookups afetados; mudanças pai/filho invalidam
+ambas as famílias; Team add/end invalida roster, candidatos do seletor,
+my-teams e projeção de autorização; Template apply invalida taxonomia. Logout,
+revogação, mudança de
+contexto e sessão são tratados pelos providers existentes com cancelamento e
+limpeza de cache. Não persistir roster ou payload tenant-owned em storage do
+navegador. Invalidation deve usar prefixes compostos verificados por testes.
+
+Usar `AppError.code`/categoria e códigos de domínio conhecidos, sem exibir
+SQL, stack ou detalhes de outro tenant. Cobrir: `AUTHORIZATION_DENIED`,
+`*_VERSION_CONFLICT`, duplicidade/SQLSTATE `23505`, pai indisponível ou
+inativo, `ACTIVE_*_DEPENDENCY`/`ACTIVE_*_CHILDREN`,
+`TEAM_STATE_OR_VERSION_CONFLICT`, `MAINTENANCE_TAXONOMY_NOT_EMPTY`,
+`CW_CATALOG_TEMPLATE_ALREADY_APPLIED`, estado inválido, resposta malformada e
+falha de rede. Recarregar detalhe após conflito sem sobrescrever edição local
+silenciosamente. Gate de implementação deve verificar se os gateways atuais
+preservam código seguro suficiente para esses casos; se não, corrigir somente
+normalização de erro da boundary existente, com teste focal, sem alterar SQL.
+
+Padrões reutilizáveis mínimos: lista paginada responsiva, filtros com labels,
+status em texto, ações acessíveis, estado vazio e vazio por filtro, `StatePanel`
+para indisponibilidade/sem permissão, botão de retry, confirmação com foco
+controlado para inativar/encerrar/aplicar, `aria-live` para resultado, loading
+e disabled durante mutation. Dialog fecha/restaura foco; teclado opera tudo;
+alvos de toque e layout funcionam em celular. Não criar design system geral.
+
+### Subwaves executáveis e testes
+
+| Bloco | Entrega e arquivos prováveis | Dependência / gate de saída |
+| --- | --- | --- |
+| W4D.1 — Shell, rotas e primitives | `src/app/router`, `layout`, `pages/cadastros`, `shared/ui`, hooks de query; IA, guards, estados, lista/filtros/dialog/form patterns | W4C fechado; rotas reais, deep link, refresh, denied e query identity testados; `W4D_ROUTE_SHELL_READY` |
+| W4D.2 — Estrutura e Equipes | páginas/hook/componentes de Tipos, Locais, CC, Setores, Teams e roster; uma migration forward-only para `lookup_team_member_candidates`, tipos gerados, boundary Zod/gateway/query key e seletor | W4D.1; migration, pgTAP de segurança e regressão W4B aprovados antes do seletor; CRUD autorizado, move, lifecycle, add/end e invalidação testados; `W4D_STRUCTURAL_TEAM_UX_READY` |
+| W4D.3 — Manutenção | páginas/hook/componentes de taxonomia, Template CW, Motivos, Tipos de Documento e Modelos/itens; gateway W4C existente | W4D.1; 11/39 preview/apply, contexto, definição atômica e grants de leitura/mutation testados; `W4D_MAINTENANCE_UX_READY` |
+| W4D.4 — Hardening integrado | testes de rota, componentes e E2E, docs W4 e revisão de segurança; somente correções focadas dentro da W4 | W4D.2/.3; regressão e gate final `CADASTRO_READY` |
+
+Unit/component tests: matriz de capability exata por recurso, estados
+loading/empty/error/denied, validação/nullability, submissão e retry,
+optimistic conflicts, códigos de lifecycle, filtros URL, query keys e
+invalidation. O seletor de Team testa boundary Zod para os três campos,
+`teamId`/busca/paginação na query key, páginas sucessivas, nome nulo ou
+duplicado, ausência de autorização e candidate stale rejeitado no add.
+Route tests: cada path, UUID/tenantRef inválido, deep link,
+refresh/back/forward, mudança de contexto e isolamento de menu. E2E
+autenticado local: create/update/inactivate de Local e Categoria; Team
+add/end e efeito em my-teams/roster; Template preview/apply e escolha vazia;
+Checklist definição atômica; conflito de versão e dependência ativa; usuário
+sem read; logout/troca de contexto sem dados antigos; viewport mobile e
+teclado nos fluxos críticos. Testes DB existentes seguem responsáveis por
+RLS, tenant, Audit/History/Outbox, idempotência e concorrência real; não
+duplicá-los em mock UI. A única migration W4D precisa de pgTAP próprio:
+elegível autorizado; tenant membership, app_user ou Team inativos; outro
+tenant; par ativo excluído; par `ended` elegível; Team alheia/inativa
+rejeitada; `add.all_tenant` obrigatório e `read.all_tenant` isolado
+insuficiente; paginação e desempate determinísticos; limite máximo; busca
+server-side; nomes iguais sem confusão de IDs; SELECT direto de dados alheios
+continua negado; TEAM reach e RLS intactos; regressão W4B. Na W4D.4 executar
+reset e smoke DB local externo
+quando disponível, pgTAP/runners, unit, E2E, typecheck, lint, build e
+`git diff --check` sem enfraquecer regressões.
+
+`CADASTRO_READY = YES` exige todos os blocos, navegação real e gestão utilizável
+dos recursos W4A/B/C segundo grants, add/end de membros, Template CW opcional,
+erro/lifecycle/conflito tratados, cache e contexto isolados, ausência de reads
+diretos/service role/autoridade de frontend, nenhuma execução/Storage/W5,
+testes e auditoria integrada aprovados, documentação refletindo código real.
+Existência de páginas isoladas não basta. W4D ainda não foi implementada.
+
+### Exceção congelada: seleção de membro de Equipe
+
+`add_team_member(team_id, membership_id,...)` requer UUID da tenant
+membership alvo. O único roster W4B, `list_team_members`, consulta pessoas
+que já tiveram vínculo com a Equipe; `list_teams_for_membership` exige que o
+UUID já seja conhecido. As policies W1 de `tenant_memberships` e `app_users`
+permitem SELECT comum somente do próprio ator. Não há RPC ou gateway de
+lookup/lista de memberships do tenant para formar o seletor de novo membro.
+Um campo de UUID digitado manualmente não é experiência administrativa
+utilizável e não cria o primeiro vínculo de modo descobrível. A W4D não pode
+resolver isso por SELECT direto, relaxamento de RLS, service role no cliente,
+uso indevido do roster ou diretório genérico de usuários.
+
+Decisão aprovada para W4D.2: **uma** migration forward-only mínima acrescenta
+`public.lookup_team_member_candidates(target_team_id uuid, search_text text
+default null, result_limit integer default 20, result_offset integer default
+0)`. O nome segue `lookup_teams` e `lookup_*` da W4A/C; é descoberta mínima
+para o seletor do `add_team_member`, não página administrativa nem consulta de
+roster. Uma boundary Zod, gateway e query key correspondentes seguem na mesma
+subwave, depois da migration local e regeneração de `database.types.ts`; nada
+disso é implementado neste planejamento.
+
+A RPC usa `private.assert_w4b_all_tenant_access('team_memberships','add')`,
+que deriva o ator de `auth.uid()`, exige app_user, tenant e tenant membership
+ativos e consulta a permissão exata efetiva, inclusive Perfil ativo e
+overrides. A permissão é **`shared.team_memberships.add.all_tenant`**,
+catalogada na W4B com `required_entitlement_key = null`; não há entitlement
+adicional aplicável. `shared.team_memberships.read.all_tenant` sozinho não
+concede acesso. Isso reutiliza a mesma capability específica do command, sem
+criar implicação `read`/`lookup`/`add`, hierarquia, permissão nova ou mudança de
+AUTH-01/AUTH-02. A Team alvo deve existir no tenant derivado e estar `active`,
+como exige `add_team_member`; Team alheia ou inativa retorna
+`TEAM_UNAVAILABLE`. Contexto sem autorização falha fechado com
+`AUTHORIZATION_DENIED` conforme helper W4B. O parâmetro `target_team_id` é
+alvo, nunca autoridade de tenant. A RPC não aceita `tenant_id` nem
+`actor_user_id`.
+
+Projeção exata: `membership_id uuid`, `user_id uuid`, `display_name text`
+nullable. Os três campos existem em `tenant_memberships.id`,
+`tenant_memberships.user_id` e `app_users.display_name`. `membership_id` é o
+argumento do command; `user_id` diferencia pessoas com nomes iguais ou nulos;
+o seletor apresenta o nome, quando houver, e um identificador inequívoco.
+Não expõe e-mail, perfil, revision, overrides, entitlement, sessão, histórico
+ou estado administrativo. Somente memberships do tenant derivado com
+`membership.status = 'active'` e `app_user.status = 'active'` são elegíveis.
+Excluir por `NOT EXISTS` apenas o par `(tenant_id, team_id, membership_id)`
+com Team membership `status = 'active'`; um vínculo `ended` não exclui o
+candidato e o retorno continua criando novo período. Não inferir identidade
+ou elegibilidade por `display_name`.
+
+Busca server-side opcional e parametrizada somente por `display_name` como
+substring literal case-insensitive; `%` e `_` do usuário não viram curingas.
+Entrada é aparada e limitada a 160 caracteres; vazio equivale a ausência de
+filtro. Nomes nulos aparecem sem filtro e não correspondem a texto de busca.
+Paginação segue o padrão list/roster W4 de `result_limit/result_offset`:
+default 20, limite inclusivo 1..100, offset não negativo; entrada inválida
+recebe `INVALID_QUERY_INPUT`. Ordem determinística por `display_name`
+case-insensitive com nulos ao fim, depois `user_id`, depois `membership_id`.
+O seletor pede a página seguinte com `offset + quantidade retornada` quando
+recebe uma página cheia; uma página vazia encerra a navegação. A UI não baixa
+o tenant inteiro para filtrar localmente. Resultado é sugestão de momento:
+`add_team_member` segue como autoridade final e pode rejeitar candidato que
+mudou entre lookup e command, com refetch e mensagem de conflito.
+
+A função será `security definer` com `search_path = ''`, referências
+qualificadas, grants mínimos de EXECUTE apenas a `authenticated`, owner e
+revoke conforme convenção W4B. Nenhum helper privilegiado novo é necessário.
+RLS e grants das tabelas permanecem; SELECT direto de outros usuários e
+memberships continua negado. A migration não altera Team, lifecycle,
+permissões, engine, TEAM reach ou efeitos de membership mutation. Nenhuma
+outra migration W4D fica planejada.
+
+Com essa exceção e os gates acima, `W4D_PLAN_FROZEN = YES`,
+`READY_FOR_W4D_IMPLEMENTATION = YES` e `CADASTRO_READY = NO` até a entrega
+integrada. `MIGRATIONS_PLANNED = YES` (exatamente uma, em W4D.2), sem
+implementação funcional nesta execução.
