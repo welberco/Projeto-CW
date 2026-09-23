@@ -11,6 +11,9 @@ import { TenantIndexPage } from '@/app/pages/tenant-index-page'
 import { InvitationPage } from '@/app/pages/invitation-page'
 import { LoginPage } from '@/app/pages/login-page'
 import { TenantRouteBoundary } from '@/app/router/tenant-route-boundary'
+import { CadastrosIndexPage } from '@/app/pages/cadastros/cadastros-index-page'
+import { CadastroRoutePage } from '@/app/pages/cadastros/cadastro-route-page'
+import { cadastroRoutes } from '@/app/pages/cadastros/cadastro-routes'
 
 export const appRoutes = [
   {
@@ -29,6 +32,11 @@ export const appRoutes = [
           { index: true, element: <TenantIndexPage /> },
           { path: 'dashboard', element: <TenantDashboardPage /> },
           { path: 'minha-conta', element: <MyAccountPage /> },
+          { path: 'cadastros', element: <CadastrosIndexPage /> },
+          ...cadastroRoutes.map((route) => ({
+            path: route.path,
+            element: <CadastroRoutePage route={route} />,
+          })),
           { path: '*', element: <NotFoundPage /> },
         ],
       },

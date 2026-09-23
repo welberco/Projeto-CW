@@ -4,6 +4,7 @@ import { RouterProvider } from 'react-router-dom'
 import { describe, expect, it, vi } from 'vitest'
 import { AppProviders } from '@/app/providers/app-providers'
 import { createAppMemoryRouter } from '@/app/router/app-router'
+import { cadastroRoutes } from '@/app/pages/cadastros/cadastro-routes'
 import type { AuthGateway } from '@/infrastructure/supabase/auth-gateway'
 import type { AuthorizationGateway } from '@/infrastructure/supabase/authorization-gateway'
 import type { ClientCorrelationId } from '@/shared/observability/correlation'
@@ -45,6 +46,21 @@ const authorizationGateway: AuthorizationGateway = {
         enabledEntitlements: ['maintenance'],
       },
     }),
+}
+
+function withPermissions(permissionCodes: string[], enabledEntitlements = ['maintenance']): AuthorizationGateway {
+  return {
+    resolveProjection: () =>
+      Promise.resolve({
+        status: 'ready',
+        projection: {
+          principalId: 'principal-a', tenantId: 'tenant-a', tenantRef,
+          membershipId: 'membership-a', profileId: 'profile-a', profileName: 'Gestor',
+          revision: { membershipVersion: 1, profileVersion: 1, catalogRevision: 12 },
+          authorizationRevision: 'm1:p1:c12', permissionCodes, enabledEntitlements,
+        },
+      }),
+  }
 }
 
 function createGateway(
@@ -112,6 +128,101 @@ function createTenantGateway() {
 }
 
 describe('app router', () => {
+  it('shows only authorized cadastro groups and real links in the tenant shell', async () => {
+    const { router } = renderRoute(
+      `/e/${tenantRef}/cadastros`, createTenantGateway(),
+      withPermissions(['shared.locations.read.all_tenant', 'shared.teams.read.team']),
+    )
+    expect(await screen.findByRole('heading', { name: 'Cadastros' })).toBeVisible()
+    expect(screen.getByRole('region', { name: 'Estrutura' })).toBeVisible()
+    expect(screen.getByRole('region', { name: 'Pessoas e Equipes' })).toBeVisible()
+    expect(screen.queryByRole('region', { name: 'Manutenção' })).not.toBeInTheDocument()
+    const nav = screen.getByRole('navigation', { name: 'Navegação principal' })
+    expect(nav.querySelector('[aria-current="page"]')).toHaveTextContent('Cadastros')
+    fireEvent.click(screen.getByRole('link', { name: 'Locais' }))
+    expect(await screen.findByRole('heading', { name: 'Locais' })).toBeVisible()
+    expect(router.state.location.pathname).toBe(`/e/${tenantRef}/cadastros/locais`)
+    expect(nav.querySelector('[aria-current="page"]')).toHaveTextContent('Cadastros')
+    await act(async () => router.navigate(-1))
+    expect(await screen.findByRole('heading', { name: 'Cadastros' })).toBeVisible()
+  })
+
+  it('keeps the cadastro entry and route fail-closed for lookup-only grants', async () => {
+    const { router } = renderRoute(
+      `/e/${tenantRef}/cadastros`, createTenantGateway(),
+      withPermissions(['shared.locations.lookup.all_tenant', 'shared.teams.lookup.team']),
+    )
+    expect(await screen.findByRole('heading', { name: 'Sem permissão' })).toBeVisible()
+    expect(screen.queryByRole('link', { name: 'Cadastros' })).not.toBeInTheDocument()
+    await act(async () => router.navigate(`/e/${tenantRef}/cadastros/locais`))
+    expect(await screen.findByRole('heading', { name: 'Sem permissão' })).toBeVisible()
+  })
+
+  it('requires the exact page grant and entitlement without inferring other actions', async () => {
+    renderRoute(
+      `/e/${tenantRef}/manutencao/motivos`, createTenantGateway(),
+      withPermissions(['maintenance.maintenance_reasons.read.all_tenant'], []),
+    )
+    expect(await screen.findByRole('heading', { name: 'Sem permissão' })).toBeVisible()
+  })
+
+  it('does not promote create, reactivate or membership add into page read', async () => {
+    const { router } = renderRoute(
+      `/e/${tenantRef}/cadastros/locais`, createTenantGateway(),
+      withPermissions([
+        'shared.locations.create.all_tenant',
+        'shared.locations.reactivate.all_tenant',
+        'shared.team_memberships.add.all_tenant',
+      ]),
+    )
+    expect(await screen.findByRole('heading', { name: 'Sem permissão' })).toBeVisible()
+    await act(async () => router.navigate(`/e/${tenantRef}/cadastros/equipes`))
+    expect(await screen.findByRole('heading', { name: 'Sem permissão' })).toBeVisible()
+  })
+
+  it('treats TEAM and ALL_TENANT team read as independent exact alternatives', async () => {
+    renderRoute(
+      `/e/${tenantRef}/cadastros/equipes`, createTenantGateway(),
+      withPermissions(['shared.teams.read.team']),
+    )
+    expect(await screen.findByRole('heading', { name: 'Equipes' })).toBeVisible()
+    expect(screen.queryByRole('link', { name: 'Membros da Equipe' })).not.toBeInTheDocument()
+  })
+
+  it('marks Cadastros active on maintenance routes without exposing other groups', async () => {
+    renderRoute(
+      `/e/${tenantRef}/manutencao/motivos`, createTenantGateway(),
+      withPermissions(['maintenance.maintenance_reasons.read.all_tenant']),
+    )
+    expect(await screen.findByRole('heading', { name: 'Motivos' })).toBeVisible()
+    const nav = screen.getByRole('navigation', { name: 'Navegação principal' })
+    expect(nav.querySelector('[aria-current="page"]')).toHaveTextContent('Cadastros')
+  })
+
+  it.each(cadastroRoutes)('resolves the frozen deep link $path without domain data', async (route) => {
+    const path = route.path.replace(/:[^/]+/g, '34000000-0000-4000-8000-000000000010')
+    const { router } = renderRoute(
+      `/e/${tenantRef}/${path}`, createTenantGateway(),
+      withPermissions([route.permissionCodes[0] ?? '']),
+    )
+    expect(await screen.findByRole('heading', { name: route.title })).toBeVisible()
+    expect(screen.getByRole('heading', { name: 'Funcionalidade em preparação' })).toBeVisible()
+    expect(router.state.location.pathname).toBe(`/e/${tenantRef}/${path}`)
+  })
+
+  it('rejects invalid detail identifiers after tenant validation', async () => {
+    renderRoute(
+      `/e/${tenantRef}/cadastros/locais/not-a-uuid`, createTenantGateway(),
+      withPermissions(['shared.locations.read.all_tenant']),
+    )
+    expect(await screen.findByRole('heading', { name: 'Página não encontrada' })).toBeVisible()
+  })
+
+  it('keeps an unknown cadastro child on the validated tenant not-found route', async () => {
+    renderRoute(`/e/${tenantRef}/cadastros/inexistente`, createTenantGateway(), withPermissions(['shared.locations.read.all_tenant']))
+    expect(await screen.findByRole('heading', { name: 'Página não encontrada' })).toBeVisible()
+  })
+
   it('redirects the unauthenticated root route to login', async () => {
     const { router } = renderRoute('/')
 

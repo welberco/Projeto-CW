@@ -1294,3 +1294,41 @@ Com essa exceção e os gates acima, `W4D_PLAN_FROZEN = YES`,
 `READY_FOR_W4D_IMPLEMENTATION = YES` e `CADASTRO_READY = NO` até a entrega
 integrada. `MIGRATIONS_PLANNED = YES` (exatamente uma, em W4D.2), sem
 implementação funcional nesta execução.
+
+### W4D.1 — Shell, rotas e padrões de UI implementados
+
+O router registra a raiz `cadastros` e os 21 paths de recurso/detalhe/relação
+congelados acima sob o `TenantRouteBoundary` existente. O índice tenant ainda
+redireciona para `dashboard`; paths desconhecidos preservam `NotFoundPage`.
+`canonicalTenantPath` somente constrói destinos estáticos registrados, após
+validar `tenantRef` como referência de navegação. IDs de detalhe inválidos
+entram no estado seguro de rota inexistente.
+
+O shell ganhou um único link primário **Cadastros**, ativo tanto nos paths
+`cadastros/*` quanto nos paths cadastrais `manutencao/*`. A raiz apresenta
+somente grupos e links que a projeção de autorização atual permite por código
+exato; Equipes aceita independentemente `read.team` ou `read.all_tenant`, sem
+calcular TEAM no cliente. Manutenção também exige entitlement. `lookup`,
+create e reactivate isolados não abrem página administrativa. Sem capability,
+o índice e as rotas mostram `NoPermissionPage`. A checagem de UI não substitui
+o servidor.
+
+As rotas de recurso são shells explícitos de **funcionalidade em preparação**:
+nenhum registro, ação CRUD, preview, seletor, query ou RPC é simulado. Padrões
+mínimos compartilhados incluem header semântico e estados distintos de
+loading/empty/error com retry; `StatePanel` aceita subtítulo h2 para uso após
+o h1 da página. Forms, filtros, dialogs e mutations de domínio aguardam as
+subwaves correspondentes. Não houve migration, alteração de tipos de banco,
+gateway, permissão, AUTH-01, AUTH-02 ou RLS.
+
+Evidência local: testes de rota com contexto e projeção simulados cobrem os 21
+deep links de recurso, índice, permissão exata, entitlement, navegação ativa,
+back, UUID inválido e path desconhecido; E2E sem sessão cobre deep link de
+Cadastros e refresh fail-closed. O harness browser atual não possui fixture
+autenticada, portanto E2E autenticado da experiência completa permanece para
+W4D.4. `npm run test:v2:unit`, `typecheck`, `lint`, `build` e `test:v2:e2e`
+passaram. `W4D_SHELL_ROUTES_READY = YES`;
+`W4D_STRUCTURAL_TEAMS_EXPERIENCE_READY = NO`;
+`W4D_MAINTENANCE_EXPERIENCE_READY = NO`;
+`W4D_INTEGRATED_HARDENING_READY = NO`; `CADASTRO_READY = NO`;
+`READY_FOR_W4D2 = YES`.

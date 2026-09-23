@@ -8,6 +8,7 @@ interface StatePanelProps {
   kind?: 'neutral' | 'error'
   live?: 'off' | 'polite' | 'assertive'
   className?: string
+  headingLevel?: 1 | 2
 }
 
 export function StatePanel({
@@ -17,7 +18,9 @@ export function StatePanel({
   kind = 'neutral',
   live = 'off',
   className,
+  headingLevel = 1,
 }: StatePanelProps) {
+  const Heading = headingLevel === 1 ? 'h1' : 'h2'
   return (
     <section
       aria-live={live}
@@ -28,7 +31,7 @@ export function StatePanel({
       )}
       role={kind === 'error' ? 'alert' : undefined}
     >
-      <h1 className="text-xl font-semibold tracking-tight">{title}</h1>
+      <Heading className="text-xl font-semibold tracking-tight">{title}</Heading>
       <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
         {description}
       </p>

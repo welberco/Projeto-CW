@@ -34,6 +34,15 @@ test('keeps an unauthenticated tenant deep link fail-closed across refresh', asy
   ).toBeVisible()
 })
 
+test('keeps a cadastro deep link fail-closed across refresh without a session', async ({ page }) => {
+  const tenantRef = '34000000-0000-4000-8000-000000000001'
+  await page.goto(`/e/${tenantRef}/cadastros/locais`)
+  await expect(page.getByRole('heading', { name: 'Autenticação necessária' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Locais' })).not.toBeVisible()
+  await page.reload()
+  await expect(page.getByRole('heading', { name: 'Autenticação necessária' })).toBeVisible()
+})
+
 test('protects the platform namespace', async ({ page }) => {
   await page.goto('/plataforma')
 

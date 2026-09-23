@@ -1,13 +1,19 @@
 import { parseTenantRef } from '@/shared/session/tenant-context'
+import { cadastroRoutes } from '@/app/pages/cadastros/cadastro-routes'
 
-export type TenantDestination = 'dashboard' | 'minha-conta'
+const navigableDestinations = new Set([
+  'dashboard',
+  'minha-conta',
+  'cadastros',
+  ...cadastroRoutes.filter((route) => !route.path.includes(':')).map((route) => route.path),
+])
 
 export function canonicalTenantPath(
   tenantRef: string,
-  destination: TenantDestination = 'dashboard',
+  destination: string = 'dashboard',
 ): string {
   const normalizedTenantRef = parseTenantRef(tenantRef)
-  if (normalizedTenantRef === null) {
+  if (normalizedTenantRef === null || !navigableDestinations.has(destination)) {
     throw new Error('Cannot build a tenant route from an invalid reference.')
   }
 

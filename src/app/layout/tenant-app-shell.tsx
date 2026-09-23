@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
-import { NavLink } from 'react-router-dom'
+import { Link, NavLink, useLocation } from 'react-router-dom'
+import { useCadastroAccess } from '@/app/pages/cadastros/cadastro-access'
 import { canonicalTenantPath } from '@/app/router/tenant-route'
 import type { AuthorizedTenantContext } from '@/shared/session/tenant-context'
 import { cn } from '@/shared/lib/cn'
@@ -13,6 +14,13 @@ export function TenantAppShell({
   context: AuthorizedTenantContext
   onSignOut: () => Promise<void>
 }) {
+  const { hasEntry } = useCadastroAccess()
+  const location = useLocation()
+  const currentPath = location.pathname.toLowerCase()
+  const tenantPrefix = `/e/${context.tenantRef.toLowerCase()}/`
+  const cadastrosActive = currentPath === `${tenantPrefix}cadastros`
+    || currentPath.startsWith(`${tenantPrefix}cadastros/`)
+    || currentPath.startsWith(`${tenantPrefix}manutencao/`)
   const navigation = [
     {
       label: 'Visão Geral',
@@ -49,7 +57,7 @@ export function TenantAppShell({
           aria-label="Navegação principal"
           className="border-b border-border bg-card px-4 py-3 md:border-b-0 md:border-r md:px-4 md:py-6"
         >
-          <ul className="flex gap-2 md:flex-col">
+          <ul className="flex flex-wrap gap-2 md:flex-col">
             {navigation.map((item) => (
               <li key={item.to}>
                 <NavLink
@@ -65,6 +73,20 @@ export function TenantAppShell({
                 </NavLink>
               </li>
             ))}
+            {hasEntry ? (
+              <li>
+                <Link
+                  aria-current={cadastrosActive ? 'page' : undefined}
+                  className={cn(
+                    'flex min-h-11 items-center rounded-md px-3 text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                    cadastrosActive && 'bg-muted text-foreground',
+                  )}
+                  to={canonicalTenantPath(context.tenantRef, 'cadastros')}
+                >
+                  Cadastros
+                </Link>
+              </li>
+            ) : null}
           </ul>
         </nav>
 
