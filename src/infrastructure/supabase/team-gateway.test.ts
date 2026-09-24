@@ -247,7 +247,7 @@ describe('W4B team gateway', () => {
     expect(from).not.toHaveBeenCalled()
   })
 
-  it('exposes exactly the twelve approved operations', () => {
+  it('exposes the W4B operations plus the constrained W4D candidate lookup', () => {
     const { gateway } = setup([])
     expect(Object.keys(gateway)).toEqual([
       'createTeam',
@@ -262,7 +262,18 @@ describe('W4B team gateway', () => {
       'listMyTeams',
       'listTeamMembers',
       'listTeamsForMembership',
+      'lookupTeamMemberCandidates',
     ])
+  })
+
+  it('maps and fail-closes the minimal W4D candidate projection', async () => {
+    const { gateway, rpc } = setup([{ membership_id: membershipId, user_id: id, display_name: null }])
+    await expect(gateway.lookupTeamMemberCandidates({ teamId: id })).resolves.toEqual([
+      { membership_id: membershipId, user_id: id, display_name: null },
+    ])
+    expect(rpc).toHaveBeenCalledWith('lookup_team_member_candidates', {
+      target_team_id: id, search_text: null, result_limit: 20, result_offset: 0,
+    })
   })
 
   it('rejects malformed and expanded projections', async () => {

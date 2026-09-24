@@ -100,6 +100,14 @@ export const teamMembershipSchema = z
     }
   })
 
+export const teamMemberCandidateSchema = z
+  .object({
+    membership_id: uuidSchema,
+    user_id: uuidSchema,
+    display_name: displayNameSchema,
+  })
+  .strict()
+
 export const teamForMembershipSchema = z
   .object({
     association_id: uuidSchema,
@@ -137,6 +145,7 @@ export type TeamListItem = z.infer<typeof teamListItemSchema>
 export type TeamLookup = z.infer<typeof teamLookupSchema>
 export type MyTeam = z.infer<typeof myTeamSchema>
 export type TeamMembership = z.infer<typeof teamMembershipSchema>
+export type TeamMemberCandidate = z.infer<typeof teamMemberCandidateSchema>
 export type TeamForMembership = z.infer<typeof teamForMembershipSchema>
 
 export const teamCommandContextSchema = z
@@ -221,6 +230,16 @@ export const teamsForMembershipInputSchema = z
   .strict()
 
 export const teamIdSchema = uuidSchema
+
+export const teamMemberCandidateLookupInputSchema = z
+  .object({
+    teamId: uuidSchema,
+    searchText: searchTextSchema,
+    limit: limitSchema,
+    offset: offsetSchema,
+  })
+  .strict()
+export type TeamMemberCandidateLookupInput = z.infer<typeof teamMemberCandidateLookupInputSchema>
 
 export type CreateTeamInput = z.infer<typeof createTeamInputSchema>
 export type UpdateTeamInput = z.infer<typeof updateTeamInputSchema>

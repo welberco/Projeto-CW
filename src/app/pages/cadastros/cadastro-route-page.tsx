@@ -7,6 +7,7 @@ import { NoPermissionPage } from '@/app/pages/no-permission-page'
 import { NotFoundPage } from '@/app/pages/not-found-page'
 import { canonicalTenantPath } from '@/app/router/tenant-route'
 import { StatePanel } from '@/shared/ui/state-panel'
+import { StructuralCatalogPage, TeamRosterPage, TeamsPage } from '@/app/pages/cadastros/cadastro-functional-pages'
 
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 
@@ -20,6 +21,13 @@ export function CadastroRoutePage({ route }: { route: CadastroRouteDefinition })
     return <NotFoundPage />
   }
   if (state.status !== 'ready') return <NoPermissionPage />
+
+  if (route.path.startsWith('cadastros/tipos-de-local')) return <StructuralCatalogPage resource="location_types" />
+  if (route.path.startsWith('cadastros/locais')) return <StructuralCatalogPage resource="locations" />
+  if (route.path.startsWith('cadastros/centros-de-custo')) return <StructuralCatalogPage resource="cost_centers" />
+  if (route.path.startsWith('cadastros/setores')) return <StructuralCatalogPage resource="sectors" />
+  if (route.path.endsWith('/membros')) return <TeamRosterPage />
+  if (route.path.startsWith('cadastros/equipes')) return <TeamsPage />
 
   return (
     <section aria-label={route.title}>

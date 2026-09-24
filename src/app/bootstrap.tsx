@@ -16,6 +16,8 @@ import { logSafeError } from '@/shared/observability/safe-logger'
 import { createAuthGateway } from '@/infrastructure/supabase/auth-gateway'
 import { createAuthorizationGateway } from '@/infrastructure/supabase/authorization-gateway'
 import { createAppSupabaseClient } from '@/infrastructure/supabase/client'
+import { createStructuralCatalogGateway } from '@/infrastructure/supabase/structural-catalog-gateway'
+import { createTeamGateway } from '@/infrastructure/supabase/team-gateway'
 
 export function bootstrapApplication(
   root: Root,
@@ -31,6 +33,10 @@ export function bootstrapApplication(
     const supabaseClient = createAppSupabaseClient(config)
     const authGateway = createAuthGateway(supabaseClient)
     const authorizationGateway = createAuthorizationGateway(supabaseClient)
+    const cadastroGateways = {
+      structuralCatalog: createStructuralCatalogGateway(supabaseClient),
+      teams: createTeamGateway(supabaseClient),
+    }
     const routerCoordinator = {
       navigateToLogin: () => router.navigate('/login', { replace: true }),
       revalidate: () => router.revalidate(),
@@ -44,6 +50,7 @@ export function bootstrapApplication(
           release={release}
           authGateway={authGateway}
           authorizationGateway={authorizationGateway}
+          cadastroGateways={cadastroGateways}
           routerCoordinator={routerCoordinator}
         >
           <RouterProvider router={router} />

@@ -8,12 +8,21 @@ const navigableDestinations = new Set([
   ...cadastroRoutes.filter((route) => !route.path.includes(':')).map((route) => route.path),
 ])
 
+const uuidSegment = '[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}'
+const dynamicDestinations = cadastroRoutes
+  .filter((route) => route.path.includes(':'))
+  .map((route) => new RegExp(`^${route.path.replace(/:[^/]+/g, uuidSegment)}$`, 'i'))
+
+function isNavigableDestination(destination: string) {
+  return navigableDestinations.has(destination) || dynamicDestinations.some((pattern) => pattern.test(destination))
+}
+
 export function canonicalTenantPath(
   tenantRef: string,
   destination: string = 'dashboard',
 ): string {
   const normalizedTenantRef = parseTenantRef(tenantRef)
-  if (normalizedTenantRef === null || !navigableDestinations.has(destination)) {
+  if (normalizedTenantRef === null || !isNavigableDestination(destination)) {
     throw new Error('Cannot build a tenant route from an invalid reference.')
   }
 

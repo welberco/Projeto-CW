@@ -13,6 +13,7 @@ import {
 import type { AuthGateway } from '@/infrastructure/supabase/auth-gateway'
 import type { AuthorizationGateway } from '@/infrastructure/supabase/authorization-gateway'
 import type { SessionRouterCoordinator } from '@/app/query/session-cache-coordinator'
+import { CadastroGatewaysContext, type CadastroGateways } from '@/app/cadastros/cadastro-gateways-context'
 
 interface AppProvidersProps extends RuntimeIdentity {
   children: ReactNode
@@ -21,6 +22,7 @@ interface AppProvidersProps extends RuntimeIdentity {
   authorizationGateway: AuthorizationGateway
   authorizationSignalBus?: AuthorizationSignalBus
   routerCoordinator: SessionRouterCoordinator
+  cadastroGateways?: CadastroGateways
 }
 
 export function AppProviders({
@@ -32,6 +34,7 @@ export function AppProviders({
   authorizationGateway,
   authorizationSignalBus,
   routerCoordinator,
+  cadastroGateways,
 }: AppProvidersProps) {
   const signals = useMemo(
     () => authorizationSignalBus ?? createAuthorizationSignalBus(),
@@ -64,7 +67,9 @@ export function AppProviders({
             queryClient={queryClient}
             signalBus={signals}
           >
-            {children}
+            <CadastroGatewaysContext.Provider value={cadastroGateways ?? null}>
+              {children}
+            </CadastroGatewaysContext.Provider>
           </AuthorizationProvider>
         </SessionProvider>
       </QueryClientProvider>

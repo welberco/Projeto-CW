@@ -15,6 +15,8 @@ import {
   teamLookupInputSchema,
   teamLookupSchema,
   teamMembershipCommandResultSchema,
+  teamMemberCandidateLookupInputSchema,
+  teamMemberCandidateSchema,
   teamMembershipSchema,
   teamMembersInputSchema,
   teamsForMembershipInputSchema,
@@ -32,6 +34,8 @@ import {
   type TeamLookup,
   type TeamLookupInput,
   type TeamMembership,
+  type TeamMemberCandidate,
+  type TeamMemberCandidateLookupInput,
   type TeamMembershipCommandResult,
   type TeamMembersInput,
   type TeamsForMembershipInput,
@@ -52,6 +56,7 @@ export interface TeamGateway {
   listMyTeams(): Promise<readonly MyTeam[]>
   listTeamMembers(input: TeamMembersInput): Promise<readonly TeamMembership[]>
   listTeamsForMembership(input: TeamsForMembershipInput): Promise<readonly TeamForMembership[]>
+  lookupTeamMemberCandidates(input: TeamMemberCandidateLookupInput): Promise<readonly TeamMemberCandidate[]>
 }
 
 type RpcRequest = PromiseLike<{ data: unknown; error: unknown }>
@@ -230,6 +235,15 @@ export function createTeamGateway(client: AppSupabaseClient): TeamGateway {
         result_limit: input.limit ?? 50,
         result_offset: input.offset ?? 0,
       }), teamForMembershipSchema)
+    },
+    lookupTeamMemberCandidates(rawInput) {
+      const input = teamMemberCandidateLookupInputSchema.parse(rawInput)
+      return rows(client.rpc('lookup_team_member_candidates', {
+        target_team_id: input.teamId,
+        search_text: sqlNullable(input.searchText ?? null),
+        result_limit: input.limit ?? 20,
+        result_offset: input.offset ?? 0,
+      }), teamMemberCandidateSchema)
     },
   }
 }

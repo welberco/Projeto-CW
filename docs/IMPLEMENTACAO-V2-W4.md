@@ -1368,3 +1368,32 @@ Gateway e UI aguardam etapa posterior. Assim,
 `W4D_TEAM_MEMBER_CANDIDATE_READ_MODEL_IMPLEMENTED = YES`,
 `W4D_TEAM_MEMBER_CANDIDATE_READ_MODEL_VALIDATED = YES`,
 `W4D_STRUCTURAL_TEAMS_EXPERIENCE_READY = NO` e `CADASTRO_READY = NO`.
+
+### W4D.2.2 — experiência de Estrutura e Equipes implementada
+
+As rotas congeladas de Tipos de Local, Locais, Centros de Custo, Setores,
+Equipes e roster agora consomem exclusivamente os gateways W4A/W4B e a
+projection mínima de candidatos W4D.2.1. A autorização de cada leitura e ação
+é consultada somente pela projection de sessão; mutations usam commands com
+correlation/idempotency, versionamento e invalidação tenant-scoped. Os
+placeholders de Manutenção permanecem para W4D.3. Esta entrega não altera o
+modelo de banco, permissões, RLS ou `database.types.ts`.
+
+O hardening final acrescentou páginas reais de lista e detalhe, formulários
+RHF/Zod, seletores alimentados pelos lookups W4A, `move` para Locais e Centros
+de Custo, setor opcional de Equipe, confirmações acessíveis de lifecycle e
+reread após sucesso ou conflito. As query keys incluem principal, tenant,
+membership, versões e geração de autorização; add/end invalidam roster,
+candidatos e projeções de Team. O helper de rota canônica passou a aceitar
+somente os paths dinâmicos congelados quando seus parâmetros são UUIDs.
+
+A suíte de componentes autenticados cobre os recursos estruturais, Equipes,
+roster, capabilities exatas, optimistic locking, estados, invalidação e o uso
+de `membership_id` no command. O total passou da base de 271 para 296 testes.
+Não há E2E autenticado no harness atual; os sete E2E não autenticados foram
+preservados.
+
+`W4D_STRUCTURAL_TEAMS_EXPERIENCE_IMPLEMENTED = YES`;
+`W4D_STRUCTURAL_TEAMS_EXPERIENCE_READY = YES`;
+`W4D_MAINTENANCE_EXPERIENCE_READY = NO`;
+`W4D_INTEGRATED_HARDENING_READY = NO`; `CADASTRO_READY = NO`.

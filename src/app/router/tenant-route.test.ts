@@ -15,6 +15,10 @@ describe('tenant routes', () => {
     expect(canonicalTenantPath(tenantRef, 'manutencao/motivos')).toBe(
       `/e/${tenantRef}/manutencao/motivos`,
     )
+    expect(canonicalTenantPath(tenantRef, 'cadastros/equipes/34000000-0000-4000-8000-000000000010')).toBe(
+      `/e/${tenantRef}/cadastros/equipes/34000000-0000-4000-8000-000000000010`,
+    )
+    expect(() => canonicalTenantPath(tenantRef, 'cadastros/equipes/not-a-uuid')).toThrow()
     expect(() => canonicalTenantPath(tenantRef, '../plataforma')).toThrow()
     expect(() => canonicalTenantPath('tenant-a')).toThrow(
       'Cannot build a tenant route from an invalid reference.',
