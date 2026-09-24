@@ -18,6 +18,7 @@ import { createAuthorizationGateway } from '@/infrastructure/supabase/authorizat
 import { createAppSupabaseClient } from '@/infrastructure/supabase/client'
 import { createStructuralCatalogGateway } from '@/infrastructure/supabase/structural-catalog-gateway'
 import { createTeamGateway } from '@/infrastructure/supabase/team-gateway'
+import { createMaintenanceCatalogGateway } from '@/infrastructure/supabase/maintenance-catalog-gateway'
 
 export function bootstrapApplication(
   root: Root,
@@ -36,6 +37,7 @@ export function bootstrapApplication(
     const cadastroGateways = {
       structuralCatalog: createStructuralCatalogGateway(supabaseClient),
       teams: createTeamGateway(supabaseClient),
+      maintenanceCatalog: createMaintenanceCatalogGateway(supabaseClient),
     }
     const routerCoordinator = {
       navigateToLogin: () => router.navigate('/login', { replace: true }),

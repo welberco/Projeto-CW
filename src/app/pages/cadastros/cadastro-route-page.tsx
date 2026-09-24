@@ -8,6 +8,7 @@ import { NotFoundPage } from '@/app/pages/not-found-page'
 import { canonicalTenantPath } from '@/app/router/tenant-route'
 import { StatePanel } from '@/shared/ui/state-panel'
 import { StructuralCatalogPage, TeamRosterPage, TeamsPage } from '@/app/pages/cadastros/cadastro-functional-pages'
+import { CatalogTemplatePage, ChecklistTemplatesPage, MaintenanceCatalogPage } from '@/app/pages/cadastros/cadastro-maintenance-pages'
 
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 
@@ -28,6 +29,12 @@ export function CadastroRoutePage({ route }: { route: CadastroRouteDefinition })
   if (route.path.startsWith('cadastros/setores')) return <StructuralCatalogPage resource="sectors" />
   if (route.path.endsWith('/membros')) return <TeamRosterPage />
   if (route.path.startsWith('cadastros/equipes')) return <TeamsPage />
+  if (route.path === 'manutencao/categorias/template-cw') return <CatalogTemplatePage />
+  if (route.path.includes('/subcategorias/')) return <MaintenanceCatalogPage resource="subcategories" />
+  if (route.path.startsWith('manutencao/categorias')) return <MaintenanceCatalogPage resource="categories" />
+  if (route.path.startsWith('manutencao/motivos')) return <MaintenanceCatalogPage resource="reasons" />
+  if (route.path.startsWith('cadastros/tipos-de-documento')) return <MaintenanceCatalogPage resource="document-types" />
+  if (route.path.startsWith('manutencao/modelos-de-checklist')) return <ChecklistTemplatesPage />
 
   return (
     <section aria-label={route.title}>

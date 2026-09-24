@@ -1397,3 +1397,43 @@ preservados.
 `W4D_STRUCTURAL_TEAMS_EXPERIENCE_READY = YES`;
 `W4D_MAINTENANCE_EXPERIENCE_READY = NO`;
 `W4D_INTEGRATED_HARDENING_READY = NO`; `CADASTRO_READY = NO`.
+
+### W4D.3 — experiência dos Cadastros de Manutenção implementada
+
+As rotas congeladas de Categorias e Subcategorias de Manutenção, Motivos,
+Tipos de Documento e Modelos de Checklist agora consomem exclusivamente o
+gateway W4C. Listas, detalhes, criação, edição e lifecycle respeitam cada
+capability exata e independente da projection de sessão. As mutations enviam
+correlation/idempotency, versão esperada e invalidam somente as projeções
+tenant-scoped relacionadas. Não há acesso direto a tabelas, nova migration,
+alteração de RLS, autorização, tipos gerados ou contrato de backend.
+
+A taxonomia continua com profundidade exata de dois níveis: Subcategoria é
+gerida dentro da Categoria, sem árvore recursiva. Motivos apresentam rótulos
+humanos para os cinco contextos congelados e enviam os enums W4C ao servidor.
+Tipos de Documento permanecem apenas metadados, sem upload ou Storage.
+Modelos de Checklist editam sua definição e itens de forma atômica, incluindo
+ordem, pergunta, instruções, tipo de resposta e obrigatoriedade; não existe
+lifecycle individual de item no contrato W4C e nenhuma execução de checklist
+foi antecipada.
+
+O Template CW permanece opcional e imutável. A tela mostra o preview e exige
+capability `maintenance.catalog_templates.apply.all_tenant` e confirmação
+explícita antes do command. A regra empty-only e a criação de cópias do tenant
+continuam autoritativas no servidor; não foram introduzidos merge, autosync,
+upgrade ou edição do template privado.
+
+Os testes de componentes autenticados cobrem rotas reais, capabilities
+independentes, filtros server-side, formulários, optimistic locking, estados
+seguros, invalidação, definição atômica do checklist e aplicação/rejeição do
+Template CW. A auditoria final acrescentou cobertura específica de conflito
+stale em Subcategoria, provando version forwarding e refetch do detalhe filho;
+o hardening de acessibilidade passou a expor erros Zod associados aos controles,
+e a prova de versionamento/refetch foi explicitada para Motivos e Tipos de
+Documento. O total local passou da base de 296 para 324 testes. O hardening
+integrado e o gate final permanecem reservados para W4D.4.
+
+`W4D_MAINTENANCE_EXPERIENCE_IMPLEMENTED = YES`;
+`W4D_STRUCTURAL_TEAMS_EXPERIENCE_READY = YES`;
+`W4D_MAINTENANCE_EXPERIENCE_READY = YES`;
+`W4D_INTEGRATED_HARDENING_READY = NO`; `CADASTRO_READY = NO`.
