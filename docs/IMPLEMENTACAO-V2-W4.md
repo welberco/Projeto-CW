@@ -1332,3 +1332,39 @@ passaram. `W4D_SHELL_ROUTES_READY = YES`;
 `W4D_MAINTENANCE_EXPERIENCE_READY = NO`;
 `W4D_INTEGRATED_HARDENING_READY = NO`; `CADASTRO_READY = NO`;
 `READY_FOR_W4D2 = YES`.
+
+### W4D.2.1 — Candidate lookup de Team Membership implementado
+
+A única migration forward-only W4D, `20260919000000_w4d_team_member_candidate_lookup.sql`,
+acrescenta `public.lookup_team_member_candidates` com a assinatura congelada.
+A função reaproveita `private.assert_w4b_all_tenant_access('team_memberships',
+'add')`: ator e tenant vêm de `auth.uid()` e dos fatos ativos do banco, com a
+capability exata `shared.team_memberships.add.all_tenant`. Teams não exigem
+entitlement adicional no catálogo W4B. A Team alvo deve estar ativa no mesmo
+tenant; o retorno contém somente `membership_id`, `user_id` e `display_name`
+nullable de memberships e app_users ativos, excluindo apenas par ativo na
+Team. Um par `ended` pode reaparecer.
+
+Busca por display name usa substring literal case-insensitive, incluindo `%`
+e `_` como caracteres normais. Busca nula/vazia não filtra; nome nulo aparece
+apenas sem filtro. O limite padrão é 20, máximo 100, offset não negativo; a
+ordem é nome case-insensitive com nulos ao final, `user_id`, `membership_id`.
+A RPC é read-only, `SECURITY DEFINER` com `search_path` vazio, referências
+qualificadas e EXECUTE somente para `authenticated`. Grants/RLS de tabelas,
+permissões, engine, TEAM reach, `add_team_member` e revision bump não mudaram.
+O lookup é sugestão no momento da leitura; o command W4B e sua unicidade de
+par ativo continuam validando e serializando a mutation concorrente. Por isso
+o runner W4B não precisou de caso ou lock adicional nesta etapa.
+
+`supabase/tests/w4d_team_member_candidate_lookup.sql` foi incluído no smoke
+local após W4C.3, mantendo os testes W4B e runners existentes. O arquivo usa
+`no_plan()`, `finish()` e rollback, com fixtures de dois tenants e cobertura
+de capability, elegibilidade, RLS, busca, paginação, TEAM e ausência de
+Audit/History/Outbox/idempotência. Em PowerShell normal, `npm run db:reset`
+e `npm run test:v2:db` passaram com 22 arquivos e 1221 assertions, incluindo
+o smoke e os runners locais; `npm run db:types` regenerou
+`database.types.ts` a partir desse banco. Docker não foi executado no sandbox.
+Gateway e UI aguardam etapa posterior. Assim,
+`W4D_TEAM_MEMBER_CANDIDATE_READ_MODEL_IMPLEMENTED = YES`,
+`W4D_TEAM_MEMBER_CANDIDATE_READ_MODEL_VALIDATED = YES`,
+`W4D_STRUCTURAL_TEAMS_EXPERIENCE_READY = NO` e `CADASTRO_READY = NO`.

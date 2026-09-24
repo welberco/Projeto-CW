@@ -315,6 +315,7 @@ switch (command) {
       'supabase/tests/w4c_authorization_contract_rollout.sql',
       'supabase/tests/w4c_maintenance_taxonomy_template.sql',
       'supabase/tests/w4c_supporting_catalog_skeletons.sql',
+      'supabase/tests/w4d_team_member_candidate_lookup.sql',
     ])
 
     runLocalNodeScript(w3cConcurrencyScript)
@@ -327,7 +328,7 @@ switch (command) {
     runLocalNodeScript(w4c3ConcurrencyScript)
 
     process.stdout.write(
-      'DB_SMOKE_OK: migrations W0-W3/W4A/W4B.1-W4B.2/W4C.1-W4C.3 aplicadas, schema esperado presente e testes pgTAP/concurrency/runner/adversarial aprovados.\n',
+      'DB_SMOKE_OK: migrations W0-W3/W4A/W4B.1-W4B.2/W4C.1-W4C.3/W4D.2.1 aplicadas, schema esperado presente e testes pgTAP/concurrency/runner/adversarial aprovados.\n',
     )
     break
   }

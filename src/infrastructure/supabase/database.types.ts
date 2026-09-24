@@ -2503,6 +2503,19 @@ export type Database = {
           name: string
         }[]
       }
+      lookup_team_member_candidates: {
+        Args: {
+          result_limit?: number
+          result_offset?: number
+          search_text?: string
+          target_team_id: string
+        }
+        Returns: {
+          display_name: string
+          membership_id: string
+          user_id: string
+        }[]
+      }
       lookup_teams: {
         Args: { result_limit?: number; search_text?: string }
         Returns: {

@@ -322,6 +322,10 @@ values
   ('public.get_checklist_template(uuid)'::regprocedure),
   ('public.lookup_checklist_templates(uuid,text,integer)'::regprocedure);
 
+insert into w2e_expected_public_security_definers (routine)
+values
+  ('public.lookup_team_member_candidates(uuid,text,integer,integer)'::regprocedure);
+
 -- Integrated RLS, grants, function and default-privilege inventory.
 select is(
   (

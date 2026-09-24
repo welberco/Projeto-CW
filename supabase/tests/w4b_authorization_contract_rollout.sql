@@ -250,19 +250,25 @@ select is(
   2::bigint,
   'the later W4B.2 phase adds exactly the two planned domain tables'
 );
+-- PostgreSQL does not record a function's migration wave. The frozen twelve
+-- names define the W4B.2 boundary; later read models are tested in their wave.
+with expected_w4b_function(name) as (
+  values
+    ('add_team_member'), ('create_team'), ('end_team_member'),
+    ('get_team'), ('inactivate_team'), ('list_my_teams'),
+    ('list_team_members'), ('list_teams'), ('list_teams_for_membership'),
+    ('lookup_teams'), ('reactivate_team'), ('update_team')
+)
 select is(
   (
-    select count(*)
+    select array_agg(procedure.proname::text order by procedure.proname::text)
     from pg_catalog.pg_proc as procedure
     join pg_catalog.pg_namespace as namespace on namespace.oid = procedure.pronamespace
+    join expected_w4b_function as expected on expected.name = procedure.proname::text
     where namespace.nspname = 'public'
-      and (procedure.proname like '%team%' or procedure.proname like '%membership%')
-      and procedure.proname not in (
-        'assign_tenant_membership_profile','change_tenant_membership_status',
-        'resolve_membership_permission_ids'
-      )
+      and procedure.prokind = 'f'
   ),
-  12::bigint,
+  (select array_agg(name order by name) from expected_w4b_function),
   'the later W4B.2 phase adds exactly the six commands and six read models'
 );
 
