@@ -674,6 +674,11 @@ describe('W4D.2.2 functional cadastro experience', () => {
     expect(await screen.findByText('Alteração concluída.')).toBeVisible()
   })
 
+  it('announces validation errors in structural and Team forms', async () => {
+    const structural = functionalGateways(); const first = renderRoute(`/e/${tenantRef}/cadastros/tipos-de-local`, createTenantGateway(), withPermissions(['shared.location_types.read.all_tenant', 'shared.location_types.create.all_tenant']), structural.gateways); fireEvent.click(await screen.findByRole('button', { name: 'Novo registro' })); const structuralForm = screen.getByRole('form', { name: 'Criar Tipos de Local' }); fireEvent.click(within(structuralForm).getByRole('button', { name: 'Criar registro' })); await waitFor(() => expect(within(structuralForm).getAllByRole('alert')).toHaveLength(3)); expect(within(structuralForm).getByLabelText('Nome')).toHaveAttribute('aria-invalid', 'true'); first.unmount()
+    const teams = functionalGateways(); renderRoute(`/e/${tenantRef}/cadastros/equipes`, createTenantGateway(), withPermissions(['shared.teams.read.all_tenant', 'shared.teams.create.all_tenant']), teams.gateways); fireEvent.click(await screen.findByRole('button', { name: 'Nova equipe' })); const teamForm = screen.getByRole('form', { name: 'Criar Equipe' }); fireEvent.click(within(teamForm).getByRole('button', { name: 'Criar equipe' })); await waitFor(() => expect(within(teamForm).getAllByRole('alert')).toHaveLength(2)); expect(within(teamForm).getByLabelText('Motivo')).toHaveAttribute('aria-invalid', 'true')
+  })
+
   it('forwards the authoritative version on update and refetches after success', async () => {
     const listLocationTypes = vi.fn(() => Promise.resolve([activeCatalogRow])); const updateLocationType = vi.fn(() => Promise.resolve({ id: recordId, version: 8, status: 'active', command_correlation_id: relatedId }))
     const custom = functionalGateways({ structural: { listLocationTypes, updateLocationType } })
@@ -756,8 +761,9 @@ describe('W4D.2.2 functional cadastro experience', () => {
 
   it('refetches candidates and roster after an invalid candidate add', async () => {
     const lookup = vi.fn(() => Promise.resolve([{ membership_id: relatedId, user_id: userId, display_name: 'Pessoa A' }])); const roster = vi.fn(() => Promise.resolve([])); const addTeamMember = vi.fn(() => Promise.reject(new Error('candidate stale'))); const custom = functionalGateways({ teams: { lookupTeamMemberCandidates: lookup, listTeamMembers: roster, addTeamMember } })
-    renderRoute(`/e/${tenantRef}/cadastros/equipes/${recordId}/membros`, createTenantGateway(), withPermissions(['shared.team_memberships.read.all_tenant', 'shared.team_memberships.add.all_tenant']), custom.gateways)
+    const { queryClient } = renderRoute(`/e/${tenantRef}/cadastros/equipes/${recordId}/membros`, createTenantGateway(), withPermissions(['shared.team_memberships.read.all_tenant', 'shared.team_memberships.add.all_tenant']), custom.gateways); const invalidate = vi.spyOn(queryClient, 'invalidateQueries')
     fireEvent.click(await screen.findByRole('button', { name: 'Pessoa A' })); fireEvent.click(screen.getByRole('button', { name: 'Adicionar membro' })); expect(await screen.findByText('Não foi possível concluir esta operação com segurança.')).toBeVisible(); await waitFor(() => expect(lookup.mock.calls.length).toBeGreaterThan(1)); expect(roster.mock.calls.length).toBeGreaterThan(1)
+    expect(invalidate.mock.calls.some(([filters]) => filters?.queryKey?.at(-1) === 'cadastros:team-candidates')).toBe(true)
   })
 
   it('requires the exact end permission, confirms and forwards membership version', async () => {

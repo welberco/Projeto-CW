@@ -1437,3 +1437,49 @@ integrado e o gate final permanecem reservados para W4D.4.
 `W4D_STRUCTURAL_TEAMS_EXPERIENCE_READY = YES`;
 `W4D_MAINTENANCE_EXPERIENCE_READY = YES`;
 `W4D_INTEGRATED_HARDENING_READY = NO`; `CADASTRO_READY = NO`.
+
+### W4D.4 — hardening integrado e gate final concluídos
+
+A auditoria integrada confirmou que todas as rotas obrigatórias de Cadastros
+resolvem experiências reais W4A/W4B/W4C; o fallback defensivo de rota passou a
+falhar como não encontrado, sem placeholder residual. Tenant e principal das
+query keys continuam derivados da projection autoritativa, enquanto
+`tenantRef` é usado somente na navegação canônica. Não há leitura ou mutation
+direta de tabela, autorização local, persistência tenant-owned paralela nem
+efeitos W3 fabricados pelo frontend.
+
+O hardening alinhou os formulários estruturais e de Equipes ao padrão
+acessível da Manutenção: erros Zod possuem `role=alert`, controles inválidos
+expõem `aria-invalid` e nomes acessíveis permanecem estáveis. Mensagens antigas
+são limpas no início de novas mutations. O roster ganhou retorno explícito à
+Equipe e mutations de membership agora invalidam todas as páginas e filtros de
+candidatos pelo prefixo tenant-scoped, além de roster e projeções de Team.
+
+A matriz integrada cobre shell, rotas/deep links, estados seguros, recursos
+estruturais, Teams/roster/candidatos, `membership_id`, catálogos de Manutenção,
+capabilities exatas, optimistic locking, stale handling, isolamento de cache,
+invalidação filter-safe, acessibilidade e regressões W1/W2/W3. A base passou de
+324 para 325 testes. A auditoria offline de dependências de produção não
+encontrou vulnerabilidades conhecidas. O aviso de bundle acima de 500 kB
+permanece residual e não bloqueante, sem dependência nova ou regressão material
+identificada.
+
+A validação final de banco foi executada externamente em PowerShell normal. O
+Docker local, o reset completo, os 22 arquivos pgTAP com 1.221 assertions, o
+smoke DB, os runners de concorrência e o runner adversarial passaram. O
+`preflight:v2` registrou somente `WARN_EXPECTED_DIRTY_WORKTREE`, esperado para
+os quatro arquivos deste fechamento; não houve falha bloqueante nos demais
+checks. Essa evidência externa complementa os gates não-DB executados nesta
+sessão e encerra a W4 sem alteração de migration, tipos gerados, RPC,
+autorização, RLS ou escopo W5.
+
+`W4D_INTEGRATED_HARDENING_IMPLEMENTED = YES`;
+`W4D_INTEGRATED_HARDENING_READY = YES`;
+`DB_RESET = PASS`; `DB_TEST = PASS`;
+`PGTAP_FILES = 22`; `PGTAP_TESTS = 1221`;
+`DB_SMOKE = PASS`; `CONCURRENCY = PASS`;
+`ADVERSARIAL = PASS`;
+`PREFLIGHT = WARN_EXPECTED_DIRTY_WORKTREE`;
+`PREFLIGHT_BLOCKING_FAILURE = NO`;
+`PENDING_EXTERNAL_DB_VALIDATION = NO`; `CADASTRO_READY = YES`;
+`W4_COMPLETE = YES`.
