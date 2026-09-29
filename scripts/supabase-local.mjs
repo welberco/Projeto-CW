@@ -59,6 +59,11 @@ const w4c3ConcurrencyScript = path.join(
   'scripts',
   'w4c3-concurrency-test.mjs',
 )
+const w5aConcurrencyScript = path.join(
+  projectRoot,
+  'scripts',
+  'w5a-authorization-rollout-concurrency-test.mjs',
+)
 const expectedMigrationVersions = [
   '20260909000000',
   '20260910000000',
@@ -86,6 +91,7 @@ const expectedMigrationVersions = [
   '20260918000000',
   '20260918001000',
   '20260918002000',
+  '20260928000000',
 ]
 const expectedPublicTables = [
   'app_users',
@@ -316,6 +322,7 @@ switch (command) {
       'supabase/tests/w4c_maintenance_taxonomy_template.sql',
       'supabase/tests/w4c_supporting_catalog_skeletons.sql',
       'supabase/tests/w4d_team_member_candidate_lookup.sql',
+      'supabase/tests/w5a_authorization_contract_rollout.sql',
     ])
 
     runLocalNodeScript(w3cConcurrencyScript)
@@ -326,9 +333,10 @@ switch (command) {
     runLocalNodeScript(w4bConcurrencyScript)
     runLocalNodeScript(w4cConcurrencyScript)
     runLocalNodeScript(w4c3ConcurrencyScript)
+    runLocalNodeScript(w5aConcurrencyScript)
 
     process.stdout.write(
-      'DB_SMOKE_OK: migrations W0-W3/W4A/W4B.1-W4B.2/W4C.1-W4C.3/W4D.2.1 aplicadas, schema esperado presente e testes pgTAP/concurrency/runner/adversarial aprovados.\n',
+      'DB_SMOKE_OK: migrations W0-W3/W4A-W4D.2.1/W5A aplicadas, schema esperado presente e testes pgTAP/concurrency/runner/adversarial aprovados.\n',
     )
     break
   }

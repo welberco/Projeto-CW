@@ -102,11 +102,11 @@ select is(
     select count(*)
     from private.authorization_profile_templates
     where template_key in ('manager','technician','assistant','requester')
-      and template_version = 4
+      and template_version = 5
       and status = 'active'
   ),
   4::bigint,
-  'the W4B.1 grants remain attached after W4C.1 advances all official templates to version four'
+  'the W4B.1 grants remain attached after W5A advances all official templates to version five'
 );
 select is(
   (
@@ -352,11 +352,11 @@ from public.tenant_permission_overrides
 where tenant_id = (select tenant_id from w4b_bootstrap);
 
 -- Exercise the historical W4B.1 rollout against its own frozen template
--- version inside this transaction; W4C.1 is authoritative at rest on v4.
+-- version inside this transaction; W5A is authoritative at rest on v5.
 update private.authorization_profile_templates
 set template_version = 3
 where template_key in ('manager','technician','assistant','requester')
-  and template_version = 4;
+  and template_version = 5;
 
 delete from public.tenant_profile_permissions as baseline
 using public.tenant_profiles as profile, public.permission_catalog as permission
@@ -463,7 +463,7 @@ select is(
 );
 
 update private.authorization_profile_templates
-set template_version = 4
+set template_version = 5
 where template_key in ('manager','technician','assistant','requester')
   and template_version = 3;
 

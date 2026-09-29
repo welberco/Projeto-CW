@@ -137,9 +137,9 @@ select is(
 select is(
   (select count(*) from private.authorization_profile_templates
    where template_key in ('manager','technician','assistant','requester')
-     and template_version = 4 and status = 'active'),
+     and template_version = 5 and status = 'active'),
   4::bigint,
-  'all four official templates advance from version three to version four'
+  'all four official templates retain the W4C.1 grants after W5A advances them to version five'
 );
 select is(
   (select count(*) from (
@@ -375,6 +375,13 @@ select id, tenant_id, membership_id, permission_id, effect, version, created_by,
 from public.tenant_permission_overrides
 where tenant_id = (select tenant_id from w4c_bootstrap);
 
+-- Exercise the historical W4C.1 rollout against its own frozen template
+-- version inside this transaction; W5A is authoritative at rest on v5.
+update private.authorization_profile_templates
+set template_version = 4
+where template_key in ('manager','technician','assistant','requester')
+  and template_version = 5;
+
 delete from public.tenant_profile_permissions as baseline
 using public.tenant_profiles as profile, public.permission_catalog as permission
 where profile.id = baseline.profile_id
@@ -476,6 +483,11 @@ select is(
   'first rollout emits one Audit fact per official profile and replay emits none'
 );
 
+update private.authorization_profile_templates
+set template_version = 5
+where template_key in ('manager','technician','assistant','requester')
+  and template_version = 4;
+
 insert into public.tenants (id, tenant_ref, display_name, status, created_by)
 values (
   '4c200000-0000-4000-8000-000000000002',
@@ -497,9 +509,9 @@ select is(
   (select count(*) from public.tenant_profiles
    where tenant_id = '4c200000-0000-4000-8000-000000000002'
      and template_key in ('manager','technician','assistant','requester')
-     and template_version = 4),
+     and template_version = 5),
   4::bigint,
-  'a new tenant is provisioned directly with all four template instances at version four'
+  'a new tenant is provisioned directly with all four template instances at version five'
 );
 select is(
   (select count(*) from public.tenant_profile_permissions as baseline

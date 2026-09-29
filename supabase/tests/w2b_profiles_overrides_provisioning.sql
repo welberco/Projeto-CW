@@ -99,7 +99,38 @@ values
   ('assistant', 'maintenance.document_types.lookup.all_tenant', 'W4C.1'),
   ('assistant', 'maintenance.checklist_templates.lookup.all_tenant', 'W4C.1'),
   ('requester', 'maintenance.maintenance_categories.lookup.all_tenant', 'W4C.1'),
-  ('requester', 'maintenance.maintenance_subcategories.lookup.all_tenant', 'W4C.1');
+  ('requester', 'maintenance.maintenance_subcategories.lookup.all_tenant', 'W4C.1'),
+  ('manager', 'shared.asset_types.read.all_tenant', 'W5A'),
+  ('manager', 'shared.asset_types.lookup.all_tenant', 'W5A'),
+  ('manager', 'shared.asset_types.create.all_tenant', 'W5A'),
+  ('manager', 'shared.asset_types.update.all_tenant', 'W5A'),
+  ('manager', 'shared.asset_types.inactivate.all_tenant', 'W5A'),
+  ('manager', 'shared.asset_types.reactivate.all_tenant', 'W5A'),
+  ('manager', 'shared.assets.read.all_tenant', 'W5A'),
+  ('manager', 'shared.assets.lookup.all_tenant', 'W5A'),
+  ('manager', 'shared.assets.create.all_tenant', 'W5A'),
+  ('manager', 'shared.assets.update.all_tenant', 'W5A'),
+  ('manager', 'shared.assets.move.all_tenant', 'W5A'),
+  ('manager', 'shared.assets.inactivate.all_tenant', 'W5A'),
+  ('manager', 'shared.assets.reactivate.all_tenant', 'W5A'),
+  ('manager', 'shared.assets.decommission.all_tenant', 'W5A'),
+  ('manager', 'shared.asset_files.read.all_tenant', 'W5A'),
+  ('manager', 'shared.asset_files.reserve.all_tenant', 'W5A'),
+  ('manager', 'shared.asset_files.finalize.all_tenant', 'W5A'),
+  ('manager', 'shared.asset_files.delete.all_tenant', 'W5A'),
+  ('manager', 'shared.asset_files.retry.all_tenant', 'W5A'),
+  ('technician', 'shared.asset_types.lookup.all_tenant', 'W5A'),
+  ('technician', 'shared.assets.read.all_tenant', 'W5A'),
+  ('technician', 'shared.assets.lookup.all_tenant', 'W5A'),
+  ('technician', 'shared.asset_files.read.all_tenant', 'W5A'),
+  ('technician', 'shared.asset_files.reserve.all_tenant', 'W5A'),
+  ('technician', 'shared.asset_files.finalize.all_tenant', 'W5A'),
+  ('technician', 'shared.asset_files.retry.all_tenant', 'W5A'),
+  ('assistant', 'shared.asset_types.lookup.all_tenant', 'W5A'),
+  ('assistant', 'shared.assets.read.all_tenant', 'W5A'),
+  ('assistant', 'shared.assets.lookup.all_tenant', 'W5A'),
+  ('assistant', 'shared.asset_files.read.all_tenant', 'W5A'),
+  ('requester', 'shared.assets.lookup.all_tenant', 'W5A');
 
 select is(
   (
@@ -345,7 +376,7 @@ select is(
     ) as unexpected
   ),
   0::bigint,
-  'official profiles receive no permission outside the explicit W2, W4A, W4B.1 and W4C.1 allowlists'
+  'official profiles receive no permission outside the explicit W2, W4A, W4B.1, W4C.1 and W5A allowlists'
 );
 select is(
   (
@@ -361,7 +392,7 @@ select is(
     ) as missing
   ),
   0::bigint,
-  'official profiles receive every permission explicitly approved by W2, W4A, W4B.1 and W4C.1'
+  'official profiles receive every permission explicitly approved by W2, W4A, W4B.1, W4C.1 and W5A'
 );
 select is(
   private.apply_w4a_authorization_rollout((select tenant_id from w2b_bootstrap)),

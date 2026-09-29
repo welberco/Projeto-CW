@@ -145,6 +145,27 @@ with approved_w2(code) as (
     ('maintenance.checklist_templates.read.all_tenant'),
     ('maintenance.checklist_templates.lookup.all_tenant'),
     ('maintenance.catalog_templates.apply.all_tenant')
+), approved_w5a(code) as (
+  values
+    ('shared.asset_types.read.all_tenant'),
+    ('shared.asset_types.lookup.all_tenant'),
+    ('shared.asset_types.create.all_tenant'),
+    ('shared.asset_types.update.all_tenant'),
+    ('shared.asset_types.inactivate.all_tenant'),
+    ('shared.asset_types.reactivate.all_tenant'),
+    ('shared.assets.read.all_tenant'),
+    ('shared.assets.lookup.all_tenant'),
+    ('shared.assets.create.all_tenant'),
+    ('shared.assets.update.all_tenant'),
+    ('shared.assets.move.all_tenant'),
+    ('shared.assets.inactivate.all_tenant'),
+    ('shared.assets.reactivate.all_tenant'),
+    ('shared.assets.decommission.all_tenant'),
+    ('shared.asset_files.read.all_tenant'),
+    ('shared.asset_files.reserve.all_tenant'),
+    ('shared.asset_files.finalize.all_tenant'),
+    ('shared.asset_files.delete.all_tenant'),
+    ('shared.asset_files.retry.all_tenant')
 )
 select
   pg_catalog.array_agg(approved.code order by approved.code) as codes,
@@ -161,6 +182,8 @@ from (
   select code, 'W4B.1'::text as source_wave from approved_w4b
   union all
   select code, 'W4C.1'::text as source_wave from approved_w4c
+  union all
+  select code, 'W5A'::text as source_wave from approved_w5a
 ) as approved;
 grant select on w2d_expected_permissions to authenticated;
 
@@ -208,7 +231,7 @@ select is(
 select is(
   (select cardinality(permission_codes) from public.resolve_my_authorization()),
   (select permission_count from w2d_expected_permissions),
-  'the manager receives exactly the allowlisted W2, W4A, W4B.1 and W4C.1 permission codes'
+  'the manager receives exactly the allowlisted W2, W4A, W4B.1, W4C.1 and W5A permission codes'
 );
 select is(
   (

@@ -152,7 +152,8 @@ values
   ('W4B.2', 'public', 'list_my_teams', true),
   ('W4B.2', 'public', 'list_team_members', true),
   ('W4B.2', 'public', 'list_teams_for_membership', true),
-  ('W4C.1', 'private', 'apply_w4c_authorization_rollout', true);
+  ('W4C.1', 'private', 'apply_w4c_authorization_rollout', true),
+  ('W5A', 'private', 'apply_w5a_authorization_rollout', true);
 
 insert into w2e_expected_authorization_functions (source_wave, schema_name, proname, prosecdef)
 values
@@ -444,7 +445,7 @@ select is(
     ) as unexpected
   ),
   0::bigint,
-  'the authorization inventory contains no routine or security mode outside the explicit W0-W2 and W4A-W4C.3 allowlist'
+  'the authorization inventory contains no routine or security mode outside the explicit W0-W2, W4A-W4C.3 and W5A allowlist'
 );
 select is(
   (
@@ -456,7 +457,7 @@ select is(
     ) as missing
   ),
   0::bigint,
-  'every explicitly allowlisted W0-W2 and W4A-W4C.3 routine remains present with its approved security mode'
+  'every explicitly allowlisted W0-W2, W4A-W4C.3 and W5A routine remains present with its approved security mode'
 );
 select is(
   (
@@ -548,7 +549,7 @@ select is(
         'apply_w4a_authorization_rollout', 'protect_w4a_catalog_mutation',
         'can_access_w4a_catalog', 'assert_w4a_catalog_access',
         'execute_w4a_catalog_command', 'apply_w4b_authorization_rollout',
-        'apply_w4c_authorization_rollout',
+        'apply_w4c_authorization_rollout', 'apply_w5a_authorization_rollout',
         'protect_team_mutation', 'enforce_team_integrity',
         'protect_team_membership_mutation', 'enforce_team_membership_integrity',
         'bump_tenant_membership_revision_for_team',
@@ -565,7 +566,7 @@ select is(
       and grantee in ('PUBLIC', 'anon', 'authenticated', 'service_role', 'cw_worker')
   ),
   0::bigint,
-  'W4A through W4C.3 private helpers expose no execution grant to client or technical API roles'
+  'W4A through W5A private helpers expose no execution grant to client or technical API roles'
 );
 select is(
   (
